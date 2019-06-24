@@ -22,7 +22,7 @@ Check the status of an upstream gRPC serviceName `echo.EchoService` listening on
 
 For any mode, enable verbose logging with glog levels: append `--logtostderr=1 -v 10`
 
-- HTTP to gRPC HealthCheck proxy:
+### HTTP to gRPC HealthCheck proxy:
 
 `grpc_health_probe` will listen on `:8080` for HTTP healthcheck requests at path `/healthz`.
 
@@ -41,7 +41,7 @@ curl http://localhost:8080/healthz
 
 ---
 
-- HTTPS to gRPC HealthCheck proxy:
+### HTTPS to gRPC HealthCheck proxy:
 
 `grpc_health_probe` will listen on `:8080` for HTTPS healthcheck requests at path `/healthz`.
 
@@ -62,7 +62,7 @@ curl --cacert CA_crt.pem  https://localhost:8080/healthz
 
 ---
 
-- mTLS HTTPS to gRPC HealthCheck proxy:
+### mTLS HTTPS to gRPC HealthCheck proxy:
 
 `grpc_health_probe` will listen on `:8080` for HTTPS with mTLS healthcheck requests at path `/healthz`.
 
@@ -85,7 +85,7 @@ curl --cacert CA_crt.pem --key client_key.pem --cert client_crt.pem  https://lo
 
 ---
 
-- mTLS to gRPC server from proxy
+### mTLS to gRPC server from proxy
 
 Options to establish mTLS from the http proxy to gRPC server
 
