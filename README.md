@@ -39,6 +39,7 @@ curl http://localhost:8080/healthz
 
 (also via `&serverName=echo.EchoServer` query parameter)
 
+---
 
 - HTTPS to gRPC HealthCheck proxy:
 
@@ -58,6 +59,8 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
 ```text
 curl --cacert CA_crt.pem  https://localhost:8080/healthz
 ```
+
+---
 
 - mTLS HTTPS to gRPC HealthCheck proxy:
 
@@ -79,6 +82,8 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
 ```text
 curl --cacert CA_crt.pem --key client_key.pem --cert client_crt.pem  https://localhost:8080/healthz
 ```
+
+---
 
 - mTLS to gRPC server from proxy
 
@@ -194,6 +199,8 @@ go get golang.org/x/net/context  \
    google.golang.org/grpc/health/grpc_health_v1
 ```
 
+---
+
 #### No TLS
 
 `client->http->grpc_health_proxy->gRPC Server`
@@ -213,6 +220,8 @@ go get golang.org/x/net/context  \
   curl -v http://http.domain.com:8080/healthz
 ```
 
+---
+
 #### TLS to Proxy
 
 `client->https->grpc_health_proxy->gRPC Server`
@@ -231,6 +240,8 @@ go get golang.org/x/net/context  \
 ```
   curl -v --cacert example/certs/CA_crt.pem  https://http.domain.com:8080/healthz
 ```
+
+---
 
 #### mTLS to Proxy and gRPC service
 
@@ -257,6 +268,8 @@ Or as a docker container from the repo root to mount certs:
 ```
   docker run  -v `pwd`/example/certs:/certs/ -p 8080:8080 --net=host  -t salrashid123/grpc_health_proxy  --http-listen-addr grpc.domain.com:8080 --http-listen-path=/healthz --grpcaddr localhost:50051 --https-listen-cert=/certs/http_server_crt.pem --https-listen-key=/certs/http_server_key.pem --service-name echo.EchoServer --https-listen-verify --https-listen-ca=/certs/CA_crt.pem --grpctls --grpc-client-cert=/certs/client_crt.pem --grpc-client-key=/certs/client_key.pem --grpc-ca-cert=/certs/CA_crt.pem --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 10
 ```
+
+---
 
 ### CLI Exit Codes
 
