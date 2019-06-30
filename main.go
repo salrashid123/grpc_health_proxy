@@ -62,14 +62,14 @@ var (
 
 type GrpcProbeError struct {
 	Code int
-    Message string
+	Message string
 }
 
 func NewGrpcProbeError(code int, message string) *GrpcProbeError {
     return &GrpcProbeError{
 		Code: code,
-        Message: message,
-    }
+		Message: message,
+	}
 }
 func (e *GrpcProbeError) Error() string {
     return e.Message
@@ -240,7 +240,7 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
 			// wrap a grpC NOT_FOUND as grpcProbeError.
 			// https://github.com/grpc/grpc/blob/master/doc/health-checking.md
-	     	// If the service name is not registered, the server returns a NOT_FOUND GRPC status.
+			// if the service name is not registerered, the server returns a NOT_FOUND GPRPC status. 
 			// the Check for a not found should "return nil, status.Error(codes.NotFound, "unknown service")"
 			glog.Warningf("error Service Not Found %v", err )
 			return healthpb.HealthCheckResponse_SERVICE_UNKNOWN, NewGrpcProbeError(StatusServiceNotFound, "StatusServiceNotFound")
@@ -265,7 +265,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	if ok && len(keys[0]) > 0 {
 		serviceName = keys[0]
 	}
-  
+
 	resp, err := checkService(r.Context(), serviceName)
 	// first handle errors derived from gRPC-codes
 	if err != nil {
@@ -376,5 +376,5 @@ func main() {
 		if err != nil {
 			glog.Fatalf("ListenAndServe Error: ", err)
 		}
-    }
+	}
 }

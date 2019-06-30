@@ -12,7 +12,7 @@ Basically, this is an http proxy for the grpc healthcheck protocol.
 
   `client--->http-->grpc_heatlh_proxy-->gRPC HealthCheck-->gRPC Server`
 
-This utlity uses similar flags, cancellation and timing snippets for the grpc call from [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe). Use that tool as a specific [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/) for Kubernetes.  This utility can be used in the same mode but also as a generic HTTP interface (eg, as httpHealthCheck probe)
+This utlity uses similar flags, cancellation and timing snippets for the grpc call from [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe). Use that tool as a specific [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/) for Kubernetes.  This utility can be used in the same cli mode but also as a generic HTTP interface (eg, as httpHealthCheck probe).  For more information on the CLI mode without http listner, see the section at the end.
 
 > This is not an official Google project and is unsupported by Google
 
@@ -273,8 +273,13 @@ Or as a docker container from the repo root to mount certs:
 
 ### CLI Exit Codes
 
-#### Serving: 0
-```
+You can run tis utiity is cli mode directly similar to the `grpc_health_probe` cited above.  In this cli mode, you can a grpc healthcheck service wihtout resorting to curl, etc.
+
+There are several exit codes this utility returns
+
+- 0: Serving
+
+```bash
 $ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1
 echo.EchoServer SERVING
 
@@ -282,20 +287,24 @@ $ echo $?
 0
 ```
 
-#### Connection Failure: 1
-```
+- 1: Connection Failure
+
+```bash
 $ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1 
 timeout: failed to connect service localhost:50051 within 1s
 HealtCheck Probe Error: StatusConnectionFailure
+
 $ echo $?
 1
 ```
 
-#### Unknown Service: 3
-```
+- 3: Unknown Service
+
+```bash
 $ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name foo  --logtostderr=1
 error Service Not Found rpc error: code = NotFound desc = unknown service
 HealtCheck Probe Error: StatusServiceNotFound
+
 $ echo $?
 3
 ```
