@@ -287,6 +287,16 @@ $ echo $?
 0
 ```
 
+- 5: Unhealthy
+
+```
+$ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1
+echo.EchoServer UNHEALTHY
+
+$ echo $?
+5
+```
+
 - 1: Connection Failure
 
 ```bash
