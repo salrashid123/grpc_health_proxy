@@ -88,7 +88,7 @@ func init() {
 	flag.StringVar(&cfg.flUserAgent, "user-agent", "grpc_health_proxy", "user-agent header value of health check requests")
 	flag.BoolVar(&cfg.flRunCli, "runcli", false, "execute healthCheck via CLI; will not start webserver")
 	// settings for HTTPS lisenter
-	flag.StringVar(&cfg.flHTTPListenAddr, "http-listen-addr", "loalhost:8080", "(required) http host:port to listen (default: localhost:8080")
+	flag.StringVar(&cfg.flHTTPListenAddr, "http-listen-addr", "localhost:8080", "(required) http host:port to listen (default: localhost:8080")
 	flag.StringVar(&cfg.flHTTPListenPath, "http-listen-path", "/", "path to listen for healthcheck traffic (default '/')")
 	flag.StringVar(&cfg.flHTTPSTLSServerCert, "https-listen-cert", "", "TLS Server certificate to for HTTP listner")
 	flag.StringVar(&cfg.flHTTPSTLSServerKey, "https-listen-key", "", "TLS Server certificate key to for HTTP listner")
