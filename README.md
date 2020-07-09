@@ -114,6 +114,12 @@ The [Dockerfile](Dockerfile) provided here run the proxy as an entrypoint and is
 
   - ```docker.io/salrashid123/grpc_health_proxy```
 
+To compile run
+
+```
+go build -o grpc_health_proxy main.go
+```
+
 ## Required Options
 
 | Option | Description |
@@ -186,18 +192,6 @@ Sample TLS certificates for use with this sample under `example/app` folder:
 #### grpc Server
 
 To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the curl command to invoke the http listener.  Copy the certificates file at `example/certs` to the folder where the `grpc_health_proxy`, the grpc Server and `curl` are run from.
-
-```
-cp -R example/app /tmp/
-cd /tmp/example/app
-
-export GOPTH=`pwd`
-go get golang.org/x/net/context  \
-   golang.org/x/net/http2  \
-   google.golang.org/grpc  \
-   google.golang.org/grpc/credentials \
-   google.golang.org/grpc/health/grpc_health_v1
-```
 
 ---
 
