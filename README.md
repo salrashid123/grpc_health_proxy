@@ -175,14 +175,10 @@ Configuration options for HTTTP(s) listener supports TLS and mTLS
 ### Example
 
 The `example/` folder contains certificates and sample gRPC server application to test with.  
-Add to `/etc/hosts`
-`
-127.0.0.1   server.domain.com http.domain.com
-`
 
 #### TLS Certificates
 
-Sample TLS certificates for use with this sample under `example/app` folder:
+Sample TLS certificates for use with this sample under `example/certs` folder:
 
 - `CA_crt.pem`:  Root CA
 - `grpc_server_crt.pem`:  TLS certificate for gRPC server
@@ -201,17 +197,24 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Run Proxy:
 ```
-  grpc_health_proxy --http-listen-addr localhost:8080 --http-listen-path=/healthz --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1 -v 10
+  grpc_health_proxy \
+    --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --service-name echo.EchoServer \
+    --logtostderr=1 -v 10
 ```
 
   - Run gRPC Server
 ```
-  go run src/grpc_server.go --grpcport 0.0.0.0:50051 --insecure
+  go run src/grpc_server.go \
+    --grpcport 0.0.0.0:50051 \
+    --insecure
 ```
 
   - Invoke http proxy
 ```
-  curl -v http://http.domain.com:8080/healthz
+  curl -v --resolve 'http.domain.com:8080:127.0.0.1' http://http.domain.com:8080/healthz
 ```
 
 ---
@@ -222,7 +225,14 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Run Proxy:
 ```
-  grpc_health_proxy --http-listen-addr localhost:8080 --http-listen-path=/healthz --grpcaddr localhost:50051 --https-listen-cert=http_server_crt.pem --https-listen-key=http_server_key.pem --service-name echo.EchoServer --logtostderr=1 -v 10
+  grpc_health_proxy \
+    --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --https-listen-cert=http_server_crt.pem \
+    --https-listen-key=http_server_key.pem \
+    --service-name echo.EchoServer \
+    --logtostderr=1 -v 10
 ```
 
   - Run gRPC Server
@@ -244,23 +254,62 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Run Proxy:
 ```
-  grpc_health_proxy --http-listen-addr localhost:8080 --http-listen-path=/healthz --grpcaddr localhost:50051 --https-listen-cert=http_server_crt.pem --https-listen-key=http_server_key.pem --service-name echo.EchoServer --https-listen-verify --https-listen-ca=CA_crt.pem --grpctls --grpc-client-cert=client_crt.pem --grpc-client-key=client_key.pem --grpc-ca-cert=CA_crt.pem --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 10
+  grpc_health_proxy \
+    --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --https-listen-cert=http_server_crt.pem \
+    --https-listen-key=http_server_key.pem \
+    --service-name echo.EchoServer \
+    --https-listen-verify \
+    --https-listen-ca=CA_crt.pem \
+    --grpctls \
+    --grpc-client-cert=client_crt.pem \
+    --grpc-client-key=client_key.pem \
+    --grpc-ca-cert=CA_crt.pem \
+    --grpc-sni-server-name=server.domain.com \
+    --logtostderr=1 -v 10
 ```
 
   - Run gRPC Server
 ```
-  go run src/grpc_server.go --grpcport 0.0.0.0:50051 --tlsCert=grpc_server_crt.pem --tlsKey=grpc_server_key.pem
+  go run src/grpc_server.go \
+    --grpcport 0.0.0.0:50051 \
+    --tlsCert=certs/grpc_server_crt.pem \
+    --tlsKey=certs/grpc_server_key.pem
 ```
 
   - Invoke http proxy
 ```
-  curl -v --cacert CA_crt.pem  --key client_key.pem --cert client_crt.pem  https://http.domain.com:8080/healthz
+  curl -v \
+   --resolve 'http.domain.com:8080:127.0.0.1' \
+  --cacert CA_crt.pem \
+  --key client_key.pem \
+  --cert client_crt.pem \
+  https://http.domain.com:8080/healthz
 ```
 
 Or as a docker container from the repo root to mount certs:
 
 ```
-  docker run  -v `pwd`/example/certs:/certs/ -p 8080:8080 --net=host  -t salrashid123/grpc_health_proxy  --http-listen-addr grpc.domain.com:8080 --http-listen-path=/healthz --grpcaddr localhost:50051 --https-listen-cert=/certs/http_server_crt.pem --https-listen-key=/certs/http_server_key.pem --service-name echo.EchoServer --https-listen-verify --https-listen-ca=/certs/CA_crt.pem --grpctls --grpc-client-cert=/certs/client_crt.pem --grpc-client-key=/certs/client_key.pem --grpc-ca-cert=/certs/CA_crt.pem --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 10
+  docker run  -v `pwd`/example/certs:/certs/ \
+    -p 8080:8080 \
+    --net=host  \
+    -t salrashid123/grpc_health_proxy \
+    --http-listen-addr grpc.domain.com:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --https-listen-cert=/certs/http_server_crt.pem \
+    --https-listen-key=/certs/http_server_key.pem \
+    --service-name echo.EchoServer \
+    --https-listen-verify \
+    --https-listen-ca=/certs/CA_crt.pem \
+    --grpctls \
+    --grpc-client-cert=/certs/client_crt.pem \
+    --grpc-client-key=/certs/client_key.pem \
+    --grpc-ca-cert=/certs/CA_crt.pem \
+    --grpc-sni-server-name=server.domain.com \
+    --logtostderr=1 -v 10
 ```
 
 ---
