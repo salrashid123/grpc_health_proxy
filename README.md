@@ -113,46 +113,6 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 1
 ```
 
-### Kubernetes Pod Healthcheck
-
-You can use this utility as a proxy for service healthchecks.
-
-In the kubernetes deployment below, an http request to the healthcheck serving port (`:8081`) will reflect
-the status of the gRPC service listening on port `:8080`
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp-deployment
-  labels:
-    type: myapp-deployment-label
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      type: myapp
-  template:
-    metadata:
-      labels:
-        type: myapp
-    spec:
-    containers:
-    - name: hc-proxy
-      image: docker.io/salrashid123/grpc_health_proxy
-      args: [
-        "--http-listen-addr=localhost:8081",
-        "--grpc-addr=localhost:8080",
-        "--service-name=echo.EchoServer",
-      ]
-      ports:
-      - containerPort: 8081
-    - name: grpc-app
-      image: gcr.io/mygcr/my-grpc-app
-      ports:
-      - containerPort: 8080
-```
-
 ## Installation
 
 Run this application stand alone or within a Docker image with TLS certificates mounted appropriately.
@@ -161,6 +121,7 @@ The [Dockerfile](Dockerfile) provided here for the proxy but you are _strongly_ 
 docker image of the same:
 
   - ```docker.io/salrashid123/grpc_health_proxy```
+    **NOTE:** the default docker image listens on containerPort `:8080`
 
 To compile the proxy directly, run
 
@@ -368,6 +329,57 @@ Or as a docker container from the repo root to mount certs:
     --grpc-sni-server-name=server.domain.com \
     --logtostderr=1 -v 10
 ```
+
+### Kubernetes Pod Healthcheck
+
+You can use this utility as a proxy for service healthchecks.
+
+This is useful for external services that utilize HTTP but need to verify a gRPC services health status.
+
+In the kubernetes deployment below, an http request to the healthcheck serving port (`:8080`) will reflect
+the status of the gRPC service listening on port `:50051`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+  labels:
+    type: myapp-deployment-label
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: myapp
+  template:
+    metadata:
+      labels:
+        type: myapp
+    spec:
+      containers:
+      - name: hc-proxy
+        image: docker.io/salrashid123/grpc_health_proxy:1.0.0
+        args: [
+          "--http-listen-addr=0.0.0.0:8080",
+          "--grpcaddr=localhost:50051",
+          "--service-name=echo.EchoServer",
+          "--logtostderr=1",
+          "-v=1"
+        ]
+        ports:
+        - containerPort: 8080
+      - name: grpc-app
+        image: salrashid123/grpc_only_backend
+        args: [
+          "/grpc_server",
+          "--grpcport=0.0.0.0:50051",
+          "--insecure"
+        ]
+        ports:
+        - containerPort: 50051
+```
+
+The docker image used for the gRPC Server is taken from [this repository](https://github.com/salrashid123/gcegrpc/tree/master/app/grpc_only_backend)
 
 ---
 
