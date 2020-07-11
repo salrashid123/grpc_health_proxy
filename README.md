@@ -168,6 +168,10 @@ To compile the proxy directly, run
 go build -o grpc_health_proxy main.go
 ```
 
+or download a binary from the Release page.
+
+The proxy version also correspond to docker image tags. (eg `salrashid123/grpc_health_proxy:1.0.0`)
+
 ## Required Options
 
 | Option | Description |
