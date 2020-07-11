@@ -2,7 +2,7 @@
 
 `grpc_health_proxy` is a webserver proxy for [gRPC Health Checking Protocol][hc].
 
-This utility sarts up an HTTP/S server which responds back after making an RPC
+This utility starts up an HTTP/S server which responds back after making an RPC
 call to an upstream server's gRPC healthcheck endpoint (`/grpc.health.v1.Health/Check`).
 
 If the healthcheck passes, response back to the original http client will be `200`.  If the
@@ -12,7 +12,7 @@ Basically, this is an http proxy for the grpc healthcheck protocol.
 
   `client--->http-->grpc_heatlh_proxy-->gRPC HealthCheck-->gRPC Server`
 
-This utlity uses similar flags, cancellation and timing snippets for the grpc call from [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe). Use that tool as a specific [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/) for Kubernetes.  This utility can be used in the same cli mode but also as a generic HTTP interface (eg, as httpHealthCheck probe).  For more information on the CLI mode without http listner, see the section at the end.
+This utility uses similar flags, cancellation and timing snippets for the grpc call from [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe). Use that tool as a specific [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/) for Kubernetes.  This utility can be used in the same cli mode but also as a generic HTTP interface (eg, as httpHealthCheck probe).  For more information on the CLI mode without http listener, see the section at the end.
 
 > This is not an official Google project and is unsupported by Google
 
@@ -57,7 +57,10 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
 ```
 
 ```text
-curl --cacert CA_crt.pem  https://localhost:8080/healthz
+curl \
+  --cacert CA_crt.pem \
+  --resolve 'http.domain.com:8080:127.0.0.1' \
+  https://host.domain.com:8080/healthz
 ```
 
 ---
@@ -80,7 +83,12 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
 ```
 
 ```text
-curl --cacert CA_crt.pem --key client_key.pem --cert client_crt.pem  https://localhost:8080/healthz
+curl \
+  --cacert CA_crt.pem \
+  --key client_key.pem \
+  --cert client_crt.pem \
+  --resolve 'http.domain.com:8080:127.0.0.1'
+  https://host.domain.com:8080/healthz
 ```
 
 ---
@@ -105,16 +113,56 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 1
 ```
 
+### Kubernetes Pod Healthcheck
+
+You can use this utility as a proxy for service healthchecks.
+
+In the kubernetes deployment below, an http request to the healthcheck serving port (`:8081`) will reflect
+the status of the gRPC service listening on port `:8080`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+  labels:
+    type: myapp-deployment-label
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: myapp
+  template:
+    metadata:
+      labels:
+        type: myapp
+    spec:
+    containers:
+    - name: hc-proxy
+      image: docker.io/salrashid123/grpc_health_proxy
+      args: [
+        "--http-listen-addr=localhost:8081",
+        "--grpc-addr=localhost:8080",
+        "--service-name=echo.EchoServer",
+      ]
+      ports:
+      - containerPort: 8081
+    - name: grpc-app
+      image: gcr.io/mygcr/my-grpc-app
+      ports:
+      - containerPort: 8080
+```
 
 ## Installation
 
 Run this application stand alone or within a Docker image with TLS certificates mounted appropriately.
 
-The [Dockerfile](Dockerfile) provided here run the proxy as an entrypoint and is available at:
+The [Dockerfile](Dockerfile) provided here for the proxy but you are _strongly_ encouraged to deploy your own
+docker image of the same:
 
   - ```docker.io/salrashid123/grpc_health_proxy```
 
-To compile run
+To compile the proxy directly, run
 
 ```
 go build -o grpc_health_proxy main.go
@@ -214,7 +262,9 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Invoke http proxy
 ```
-  curl -v --resolve 'http.domain.com:8080:127.0.0.1' http://http.domain.com:8080/healthz
+  curl -v \
+    --resolve 'http.domain.com:8080:127.0.0.1' \
+    http://http.domain.com:8080/healthz
 ```
 
 ---
@@ -242,7 +292,10 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Invoke http proxy
 ```
-  curl -v --cacert example/certs/CA_crt.pem  https://http.domain.com:8080/healthz
+  curl -v \
+    --cacert example/certs/CA_crt.pem  \
+    --resolve 'http.domain.com:8080:127.0.0.1 \
+    'https://http.domain.com:8080/healthz
 ```
 
 ---
@@ -283,10 +336,10 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 ```
   curl -v \
    --resolve 'http.domain.com:8080:127.0.0.1' \
-  --cacert CA_crt.pem \
-  --key client_key.pem \
-  --cert client_crt.pem \
-  https://http.domain.com:8080/healthz
+   --cacert CA_crt.pem \
+   --key client_key.pem \
+   --cert client_crt.pem \
+   https://http.domain.com:8080/healthz
 ```
 
 Or as a docker container from the repo root to mount certs:
@@ -323,7 +376,12 @@ There are several exit codes this utility returns
 - 0: Serving
 
 ```bash
-$ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1
+$ ./grpc_health_proxy \
+   --runcli \
+   --grpcaddr localhost:50051 \
+   --service-name echo.EchoServer  \
+   --logtostderr=1
+
 echo.EchoServer SERVING
 
 $ echo $?
@@ -333,7 +391,12 @@ $ echo $?
 - 5: Unhealthy
 
 ```
-$ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1
+$ ./grpc_health_proxy \
+   --runcli \
+   --grpcaddr localhost:50051 \
+   --service-name echo.EchoServer  \
+   --logtostderr=1
+
 echo.EchoServer UNHEALTHY
 
 $ echo $?
@@ -343,7 +406,12 @@ $ echo $?
 - 1: Connection Failure
 
 ```bash
-$ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name echo.EchoServer  --logtostderr=1 
+$ ./grpc_health_proxy \
+   --runcli \
+   --grpcaddr localhost:50051 \
+   --service-name echo.EchoServer \
+   --logtostderr=1 
+
 timeout: failed to connect service localhost:50051 within 1s
 HealtCheck Probe Error: StatusConnectionFailure
 
@@ -354,7 +422,12 @@ $ echo $?
 - 3: Unknown Service
 
 ```bash
-$ ./grpc_health_proxy --runcli --grpcaddr localhost:50051 --service-name foo  --logtostderr=1
+$ ./grpc_health_proxy \
+   --runcli \
+   --grpcaddr localhost:50051 \
+   --service-name foo  \
+   --logtostderr=1
+
 error Service Not Found rpc error: code = NotFound desc = unknown service
 HealtCheck Probe Error: StatusServiceNotFound
 
