@@ -258,9 +258,9 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
   - Invoke http proxy
 ```
   curl -v \
-    --cacert example/certs/CA_crt.pem  \
-    --resolve 'http.domain.com:8080:127.0.0.1 \
-    'https://http.domain.com:8080/healthz
+    --cacert CA_crt.pem  \
+    --resolve 'http.domain.com:8080:127.0.0.1' \
+    https://http.domain.com:8080/healthz
 ```
 
 ---
@@ -285,7 +285,7 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
     --grpc-client-cert=client_crt.pem \
     --grpc-client-key=client_key.pem \
     --grpc-ca-cert=CA_crt.pem \
-    --grpc-sni-server-name=server.domain.com \
+    --grpc-sni-server-name=grpc.domain.com \
     --logtostderr=1 -v 10
 ```
 
@@ -293,8 +293,8 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 ```
   go run src/grpc_server.go \
     --grpcport 0.0.0.0:50051 \
-    --tlsCert=certs/grpc_server_crt.pem \
-    --tlsKey=certs/grpc_server_key.pem
+    --tlsCert=grpc_server_crt.pem \
+    --tlsKey=grpc_server_key.pem
 ```
 
   - Invoke http proxy
@@ -310,11 +310,11 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 Or as a docker container from the repo root to mount certs:
 
 ```
-  docker run  -v `pwd`/example/certs:/certs/ \
+  docker run  -v `pwd`/certs:/certs/ \
     -p 8080:8080 \
     --net=host  \
     -t salrashid123/grpc_health_proxy \
-    --http-listen-addr grpc.domain.com:8080 \
+    --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
     --https-listen-cert=/certs/http_server_crt.pem \
@@ -326,7 +326,7 @@ Or as a docker container from the repo root to mount certs:
     --grpc-client-cert=/certs/client_crt.pem \
     --grpc-client-key=/certs/client_key.pem \
     --grpc-ca-cert=/certs/CA_crt.pem \
-    --grpc-sni-server-name=server.domain.com \
+    --grpc-sni-server-name=grpc.domain.com \
     --logtostderr=1 -v 10
 ```
 

@@ -16,11 +16,11 @@
 // gRPC healthchecks
 //
 // Usage:
-// add to /etc/hosts:  127.0.0.1 server.domain.com
 // 1. Start gRPC Server.
-//    go run src/grpc_server.go --grpcport 0.0.0.0:50051 --insecure
+//    go run src/grpc_server.go --grpcport :50051 --insecure
+//
 // 3. Optionally add TLS settings:
-//    go run src/grpc_server.go --grpcport 0.0.0.0:50051 --tlsCert=pub.pem --tlsKey=key.pem
+//    go run src/grpc_server.go --grpcport :50051 --tlsCert certs/grpc_server_crt.pem --tlsKey certs/grpc_server_key.pem
 // Add --unhealthyproability flag while running to simulate random healthcheck failure
 // probability:  eg, --unhealthyproability 50 will return grpC "HealthCheckResponse_NOT_SERVING"
 
@@ -82,15 +82,6 @@ func (s *Server) SayHello(ctx context.Context, in *echo.EchoRequest) (*echo.Echo
 	return &echo.EchoReply{Message: "Hello " + in.Name + "  from hostname " + h}, nil
 }
 
-func (s *Server) SayHelloStream(in *echo.EchoRequest, stream echo.EchoServer_SayHelloStreamServer) error {
-
-	log.Println("Got stream:  -->  ")
-	stream.Send(&echo.EchoReply{Message: "Hello " + in.Name})
-	stream.Send(&echo.EchoReply{Message: "Hello " + in.Name})
-
-	return nil
-}
-
 func (s *Server) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -108,8 +99,6 @@ func (s *Server) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*h
 	}
 	status, ok := s.statusMap[in.Service]
 	if !ok {
-		// https://github.com/grpc/grpc/blob/master/doc/health-checking.md
-		// "If the service name is not registered, the server returns a NOT_FOUND GRPC status."
 		return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_UNKNOWN}, grpc.Errorf(codes.NotFound, "unknown service")
 	}
 	return &healthpb.HealthCheckResponse{Status: status}, nil
@@ -134,7 +123,7 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	sopts := []grpc.ServerOption{grpc.MaxConcurrentStreams(10)}
+	sopts := []grpc.ServerOption{}
 	if *insecure == false {
 		if *tlsCert == "" || *tlsKey == "" {
 			log.Fatalf("Must set --tlsCert and tlsKey if --insecure flags is used")
@@ -151,7 +140,7 @@ func main() {
 	healthpb.RegisterHealthServer(s, srv)
 	echo.RegisterEchoServerServer(s, srv)
 	reflection.Register(s)
-
+	log.Println("Starting Server...")
 	s.Serve(lis)
 
 }

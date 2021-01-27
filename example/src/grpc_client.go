@@ -16,18 +16,20 @@
 // gRPC Client request and API call
 //
 // Usage:
-// add to /etc/hosts:  127.0.0.1 server.domain.com
 // 1. Start gRPC Server.
 // 2  Run client and connect
-//    go run src/grpc_client.go --host server.domain.com:50051 --insecure
+//    go run src/grpc_client.go --host localhost:50051 --insecure
 // 3. Optionally add TLS settings on client and server:
-//    go run src/grpc_client.go --host server.domain.com:50051 --tlscert CA_crt.pem
+//    go run src/grpc_client.go --host localhost:50051 --tlsCert certs/CA_crt.pem -skipHealthCheck --servername grpc.domain.com
 
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"echo"
 	"flag"
+	"io/ioutil"
 	"log"
 	"time"
 
@@ -47,18 +49,31 @@ func main() {
 
 	address := flag.String("host", "localhost:50051", "host:port of gRPC server")
 	insecure := flag.Bool("insecure", false, "connect without TLS")
+	skipHealthCheck := flag.Bool("skipHealthCheck", false, "Skip Initial Healthcheck")
 	tlsCert := flag.String("tlsCert", "", "tls Certificate")
+	serverName := flag.String("servername", "grpc.domain.com", "CACert for server")
+	repeat := flag.Int("repeat", 1, "Number of Unary Requests to send")
 	flag.Parse()
 
-  var err error
+	var err error
 	var conn *grpc.ClientConn
 	if *insecure == true {
 		conn, err = grpc.Dial(*address, grpc.WithInsecure())
 	} else {
-		ce, err := credentials.NewClientTLSFromFile(*tlsCert, "")
+
+		var tlsCfg tls.Config
+		rootCAs := x509.NewCertPool()
+		pem, err := ioutil.ReadFile(*tlsCert)
 		if err != nil {
-			log.Fatalf("Failed to generate credentials %v", err)
+			log.Fatalf("failed to load root CA certificates  error=%v", err)
 		}
+		if !rootCAs.AppendCertsFromPEM(pem) {
+			log.Fatalf("no root CA certs parsed from file ")
+		}
+		tlsCfg.RootCAs = rootCAs
+		tlsCfg.ServerName = *serverName
+
+		ce := credentials.NewTLS(&tlsCfg)
 		conn, err = grpc.Dial(*address, grpc.WithTransportCredentials(ce))
 	}
 	if err != nil {
@@ -72,20 +87,24 @@ func main() {
 	// how to perform healthcheck request manually:
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
-	resp, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{Service: "echo.EchoServer"})
-	if err != nil {
-		log.Fatalf("HealthCheck failed %+v", err)
-	}
 
-	if resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-		log.Fatalf("service not in serving state: ", resp.GetStatus().String())
-	}
-	log.Printf("RPC HealthChekStatus:%v", resp.GetStatus())
+	if !*skipHealthCheck {
+		resp, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{Service: "echo.EchoServer"})
+		if err != nil {
+			log.Fatalf("HealthCheck failed %+v", err)
+		}
 
+		if resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			log.Fatalf("service not in serving state: ", resp.GetStatus().String())
+		}
+		log.Printf("RPC HealthChekStatus:%v", resp.GetStatus())
+	}
 	// now make a gRPC call
-	r, err := c.SayHello(ctx, &echo.EchoRequest{Name: "unary RPC msg "})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+	for i := 0; i < *repeat; i++ {
+		r, err := c.SayHello(ctx, &echo.EchoRequest{Name: "unary RPC msg "})
+		if err != nil {
+			log.Fatalf("could not greet: %v", err)
+		}
+		log.Printf("RPC Response: %v", r)
 	}
-	log.Printf("RPC Response: %v",  r)
 }
