@@ -120,8 +120,9 @@ Run this application stand alone or within a Docker image with TLS certificates 
 The [Dockerfile](Dockerfile) provided here for the proxy but you are _strongly_ encouraged to deploy your own
 docker image of the same:
 
-  - ```docker.io/salrashid123/grpc_health_proxy```
+  - ```gcr.io/cloud-solutions-images/grpc_health_proxy```
     **NOTE:** the default docker image listens on containerPort `:8080`
+
 
 To compile the proxy directly, run
 
@@ -131,7 +132,8 @@ go build -o grpc_health_proxy main.go
 
 or download a binary from the Release page.
 
-The proxy version also correspond to docker image tags. (eg `salrashid123/grpc_health_proxy:1.0.0`)
+The proxy version also correspond to docker image tags.
+-  `gcr.io/cloud-solutions-images/grpc_health_proxy:1.0.0` `sha256:f925bfd09d8339e26d86bfd6ead3b804bfb7a2b012469ca00dddf77c169a675a`)
 
 ## Required Options
 
@@ -210,6 +212,7 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
   - Run Proxy:
 ```
+  cd example/
   grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
@@ -239,13 +242,14 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 `client->https->grpc_health_proxy->gRPC Server`
 
   - Run Proxy:
-```
+```bash
+  cd example/
   grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
-    --https-listen-cert=http_server_crt.pem \
-    --https-listen-key=http_server_key.pem \
+    --https-listen-cert=certs/http_server_crt.pem \
+    --https-listen-key=certs/http_server_key.pem \
     --service-name echo.EchoServer \
     --logtostderr=1 -v 10
 ```
@@ -258,7 +262,7 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
   - Invoke http proxy
 ```
   curl -v \
-    --cacert CA_crt.pem  \
+    --cacert certs/CA_crt.pem  \
     --resolve 'http.domain.com:8080:127.0.0.1' \
     https://http.domain.com:8080/healthz
 ```
@@ -269,22 +273,24 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 
 `client->https->grpc_health_proxy->mTLS->gRPC Server`
 
+Note that for convenience, we are reusing the same client and CA certificate during various stages here:
 
   - Run Proxy:
-```
+```bash
+  cd example/
   grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
-    --https-listen-cert=http_server_crt.pem \
-    --https-listen-key=http_server_key.pem \
+    --https-listen-cert=certs/http_server_crt.pem \
+    --https-listen-key=certs/http_server_key.pem \
     --service-name echo.EchoServer \
     --https-listen-verify \
-    --https-listen-ca=CA_crt.pem \
+    --https-listen-ca=certs/CA_crt.pem \
     --grpctls \
-    --grpc-client-cert=client_crt.pem \
-    --grpc-client-key=client_key.pem \
-    --grpc-ca-cert=CA_crt.pem \
+    --grpc-client-cert=certs/client_crt.pem \
+    --grpc-client-key=certs/client_key.pem \
+    --grpc-ca-cert=certs/CA_crt.pem \
     --grpc-sni-server-name=grpc.domain.com \
     --logtostderr=1 -v 10
 ```
@@ -293,17 +299,17 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 ```
   go run src/grpc_server.go \
     --grpcport 0.0.0.0:50051 \
-    --tlsCert=grpc_server_crt.pem \
-    --tlsKey=grpc_server_key.pem
+    --tlsCert=certs/grpc_server_crt.pem \
+    --tlsKey=certs/grpc_server_key.pem
 ```
 
   - Invoke http proxy
 ```
   curl -v \
    --resolve 'http.domain.com:8080:127.0.0.1' \
-   --cacert CA_crt.pem \
-   --key client_key.pem \
-   --cert client_crt.pem \
+   --cacert certs/CA_crt.pem \
+   --key certs/client_key.pem \
+   --cert certs/client_crt.pem \
    https://http.domain.com:8080/healthz
 ```
 
@@ -313,7 +319,7 @@ Or as a docker container from the repo root to mount certs:
   docker run  -v `pwd`/certs:/certs/ \
     -p 8080:8080 \
     --net=host  \
-    -t salrashid123/grpc_health_proxy \
+    -t gcr.io/cloud-solutions-images/grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
@@ -358,7 +364,7 @@ spec:
     spec:
       containers:
       - name: hc-proxy
-        image: docker.io/salrashid123/grpc_health_proxy:1.0.0
+        image: gcr.io/cloud-solutions-images/grpc_health_proxy
         args: [
           "--http-listen-addr=0.0.0.0:8080",
           "--grpcaddr=localhost:50051",
@@ -369,7 +375,7 @@ spec:
         ports:
         - containerPort: 8080
       - name: grpc-app
-        image: salrashid123/grpc_only_backend
+        image: gcr.io/cloud-solutions-images/grpc_only_backend
         args: [
           "/grpc_server",
           "--grpcport=0.0.0.0:50051",
@@ -379,13 +385,13 @@ spec:
         - containerPort: 50051
 ```
 
-The docker image used for the gRPC Server is taken from [this repository](https://github.com/salrashid123/gcegrpc/tree/master/app/grpc_only_backend)
+The docker image used for the gRPC Server is taken from `eample/` folder in the same repo
 
 ---
 
 ### CLI Exit Codes
 
-You can run tis utiity is cli mode directly similar to the `grpc_health_probe` cited above.  In this cli mode, you can a grpc healthcheck service wihtout resorting to curl, etc.
+You can run tis utiity is cli mode directly similar to the `grpc_health_probe` cited above.  In this cli mode, you can a grpc healthcheck service without resorting to curl, etc.
 
 There are several exit codes this utility returns
 
