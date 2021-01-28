@@ -30,8 +30,9 @@ import (
 	"echo"
 	"flag"
 	"io/ioutil"
-	"log"
 	"time"
+
+	log "github.com/golang/glog"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -53,6 +54,9 @@ func main() {
 	tlsCert := flag.String("tlsCert", "", "tls Certificate")
 	serverName := flag.String("servername", "grpc.domain.com", "CACert for server")
 	repeat := flag.Int("repeat", 1, "Number of Unary Requests to send")
+
+	flag.Set("logtostderr", "true")
+	flag.Set("stderrthreshold", "INFO")
 	flag.Parse()
 
 	var err error
@@ -97,7 +101,7 @@ func main() {
 		if resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
 			log.Fatalf("service not in serving state: ", resp.GetStatus().String())
 		}
-		log.Printf("RPC HealthChekStatus:%v", resp.GetStatus())
+		log.Infof("RPC HealthChekStatus: %v\n", resp.GetStatus())
 	}
 	// now make a gRPC call
 	for i := 0; i < *repeat; i++ {
@@ -105,6 +109,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not greet: %v", err)
 		}
-		log.Printf("RPC Response: %v", r)
+		log.Infof("RPC Response: %v\n", r)
 	}
 }

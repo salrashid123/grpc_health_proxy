@@ -29,12 +29,12 @@ package main
 import (
 	"echo"
 	"flag"
-	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"os"
 	"sync"
+
+	log "github.com/golang/glog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -73,8 +73,7 @@ func NewServer() *Server {
 
 func (s *Server) SayHello(ctx context.Context, in *echo.EchoRequest) (*echo.EchoReply, error) {
 
-	log.Println("Got rpc: --> ", in.Name)
-
+	log.Infof("Got rpc: --> %s\n", in.Name)
 	var h, err = os.Hostname()
 	if err != nil {
 		log.Fatalf("Unable to get hostname %v", err)
@@ -110,10 +109,12 @@ func (s *Server) Watch(in *healthpb.HealthCheckRequest, srv healthpb.Health_Watc
 
 func main() {
 
+	flag.Set("logtostderr", "true")
+	flag.Set("stderrthreshold", "INFO")
 	flag.Parse()
 
 	if *grpcport == "" {
-		fmt.Fprintln(os.Stderr, "missing -grpcport flag (:50051)")
+		log.Errorf("missing -grpcport flag (:50051)")
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -126,7 +127,7 @@ func main() {
 	sopts := []grpc.ServerOption{}
 	if *insecure == false {
 		if *tlsCert == "" || *tlsKey == "" {
-			log.Fatalf("Must set --tlsCert and tlsKey if --insecure flags is used")
+			log.Fatalf("Must set --tlsCert and tlsKey if --insecure flags is not set")
 		}
 		ce, err := credentials.NewServerTLSFromFile(*tlsCert, *tlsKey)
 		if err != nil {
@@ -140,7 +141,7 @@ func main() {
 	healthpb.RegisterHealthServer(s, srv)
 	echo.RegisterEchoServerServer(s, srv)
 	reflection.Register(s)
-	log.Println("Starting Server...")
+	log.Info("Starting Server...")
 	s.Serve(lis)
 
 }
