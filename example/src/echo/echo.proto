@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package echo;
+option go_package = "github.com/salrashid123/grpc_health_proxy/example/src/echo";
 
 service EchoServer {
   rpc SayHello (EchoRequest) returns (EchoReply) {}

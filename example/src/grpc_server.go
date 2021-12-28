@@ -27,12 +27,13 @@
 package main
 
 import (
-	"echo"
 	"flag"
 	"math/rand"
 	"net"
 	"os"
 	"sync"
+
+	echo "github.com/salrashid123/grpc_health_proxy/example/src/echo"
 
 	log "github.com/golang/glog"
 
@@ -62,6 +63,8 @@ type Server struct {
 	mu sync.Mutex
 	// statusMap stores the serving status of the services this Server monitors.
 	statusMap map[string]healthpb.HealthCheckResponse_ServingStatus
+	// Embed the unimplemented server
+	echo.UnimplementedEchoServerServer
 }
 
 // NewServer returns a new Server.

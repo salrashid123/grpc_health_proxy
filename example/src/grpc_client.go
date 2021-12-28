@@ -27,10 +27,11 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"echo"
 	"flag"
 	"io/ioutil"
 	"time"
+
+	echo "github.com/salrashid123/grpc_health_proxy/example/src/echo"
 
 	log "github.com/golang/glog"
 
