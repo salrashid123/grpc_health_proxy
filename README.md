@@ -120,9 +120,13 @@ Run this application stand alone or within a Docker image with TLS certificates 
 The [Dockerfile](Dockerfile) provided here for the proxy but you are _strongly_ encouraged to deploy your own
 docker image of the same:
 
-  - ```gcr.io/cloud-solutions-images/grpc_health_proxy```
+  - ```docker.io/salrashid123/grpc_health_proxy```
     **NOTE:** the default docker image listens on containerPort `:8080`
 
+
+>> Note, the application an healthcheck docker image now is on `docker.io`.  Please generate and host your own images as necessary:
+
+* `gcr.io/cloud-solutions-images/grpc_health_proxy` =-> `docker.io/salrashid123/grpc_health_proxy`
 
 To compile the proxy directly, run
 
@@ -133,7 +137,7 @@ go build -o grpc_health_proxy main.go
 or download a binary from the Release page.
 
 The proxy version also correspond to docker image tags.
--  `gcr.io/cloud-solutions-images/grpc_health_proxy:1.0.0` `sha256:f925bfd09d8339e26d86bfd6ead3b804bfb7a2b012469ca00dddf77c169a675a`)
+-  `docker.io/salrashid123/grpc_health_proxy:1.0.0` `sha256:bba655892eedd2a59a0197f0949faad24f49546a6e548489be545c56776abbf9`)
 
 ## Required Options
 
@@ -319,7 +323,7 @@ Or as a docker container from the repo root to mount certs:
   docker run  -v `pwd`/certs:/certs/ \
     -p 8080:8080 \
     --net=host  \
-    -t gcr.io/cloud-solutions-images/grpc_health_proxy \
+    -t docker.io/salrashid123/grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
@@ -364,7 +368,7 @@ spec:
     spec:
       containers:
       - name: hc-proxy
-        image: gcr.io/cloud-solutions-images/grpc_health_proxy
+        image: docker.io/salrashid123/grpc_health_proxy
         args: [
           "--http-listen-addr=0.0.0.0:8080",
           "--grpcaddr=localhost:50051",
@@ -375,7 +379,7 @@ spec:
         ports:
         - containerPort: 8080
       - name: grpc-app
-        image: gcr.io/cloud-solutions-images/grpc_only_backend
+        image: docker.io/salrashid123/grpc_only_backend
         args: [
           "/grpc_server",
           "--grpcport=0.0.0.0:50051",
