@@ -168,7 +168,7 @@ TLS options for the connection _from_ `grpc_health_proxy` _to_ the upstream gRPC
 | **`-grpc-ca-cert`** | path to file containing CA certificates (to override system root CAs) |
 | **`-grpc-client-cert`** | client certificate for authenticating to the server |
 | **`-grpc-client-key`** | private key for for authenticating to the server |
-| **`-grpc-no-verify`** | use TLS, but do not verify the certificate presented by the server (INSECURE) (default: false) |
+| **`-grpc-tls-no-verify`** | use TLS, but do not verify the certificate presented by the server (INSECURE) (default: false) |
 | **`-grpc-sni-server-name`** | override the hostname used to verify the server certificate |
 
 ## HTTP(s) Proxy
