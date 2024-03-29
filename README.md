@@ -10,7 +10,7 @@ gRPC HealthCheck failed, a `503` is returned.  If the service is not registered,
 
 Basically, this is an http proxy for the grpc healthcheck protocol.
 
-  `client--->http-->grpc_heatlh_proxy-->gRPC HealthCheck-->gRPC Server`
+  `client--->http(s)-->grpc_heatlh_proxy-->gRPC HealthCheck (http(s)-->gRPC Server`
 
 This utility uses similar flags, cancellation and timing snippets for the grpc call from [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe). Use that tool as a specific [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/) for Kubernetes.  This utility can be used in the same cli mode but also as a generic HTTP interface (eg, as httpHealthCheck probe).  For more information on the CLI mode without http listener, see the section at the end.
 
@@ -26,102 +26,42 @@ go build -o grpc_health_proxy main.go
 
 or use one of the binaries in `Releases` section or the docker image
 
-**EXAMPLES**
+## Quickstart
 
-Check the status of an upstream gRPC serviceName `echo.EchoService` listening on `:50051`:
+The following checks the status of an upstream gRPC serviceName `echo.EchoService` listening on `:50051`:
 
-For any mode, enable verbose logging with glog levels: append `--logtostderr=1 -v 10`
+`client->http->grpc_health_proxy->gRPC Server`
 
-### HTTP to gRPC HealthCheck proxy:
-
-`grpc_health_proxy` will listen on `:8080` for HTTP healthcheck requests at path `/healthz`.
+  - Run gRPC Server
 
 ```bash
-$ grpc_health_proxy --http-listen-addr localhost:8080 \
-                    --http-listen-path /healthz \
-                    --grpcaddr localhost:50051 \
-                    --service-name echo.EchoServer --logtostderr=1 -v 1
+cd example/
+  go run src/grpc_server.go \
+    --grpcport 0.0.0.0:50051 \
+    --insecure
 ```
 
+- Run Proxy:
+
 ```bash
-curl http://localhost:8080/healthz
+  cd example/
+  grpc_health_proxy \
+    --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --service-name echo.EchoServer \
+    --logtostderr=1 -v 10
 ```
 
-(also via `&serverName=echo.EchoServer` query parameter)
-
----
-
-### HTTPS to gRPC HealthCheck proxy:
-
-`grpc_health_proxy` will listen on `:8080` for HTTPS healthcheck requests at path `/healthz`.
-
-HTTPS listener will use keypairs [http_crt.pem, http_key.pem]
+  - Invoke http proxy
 
 ```bash
-$ grpc_health_proxy --http-listen-addr localhost:8080 \
-                    --http-listen-path /heatlhz \
-                    --grpcaddr localhost:50051 \
-                    --https-listen-cert http_crt.pem \
-                    --https-listen-key http_key.pem \
-                    --grpc-service-name echo.EchoServer --logtostderr=1 -v 1
-```
-
-```bash
-curl \
-  --cacert CA_crt.pem \
-  --resolve 'http.domain.com:8080:127.0.0.1' \
-  https://host.domain.com:8080/healthz
+  curl -v \
+    --resolve 'http.domain.com:8080:127.0.0.1' \
+    http://http.domain.com:8080/healthz
 ```
 
 ---
-
-### mTLS HTTPS to gRPC HealthCheck proxy:
-
-`grpc_health_proxy` will listen on `:8080` for HTTPS with mTLS healthcheck requests at path `/healthz`.
-
-HTTPS listener will use keypairs [http_crt.pem, http_crt.pem] and verify client certificates issued by `CA_crt.pem`
-
-```bash
-$ grpc_health_proxy --http-listen-addr localhost:8080 \
-                    --http-listen-path /healthz \
-                    --grpcaddr localhost:50051 \
-                    --https-listen-cert http_crt.pem \
-                    --https-listen-key http_key.pem \
-                    --grpc-service-name echo.EchoServer \
-                    --https-listen-verify \
-                    --https-listen-ca=CA_crt.pem --logtostderr=1 -v 1
-```
-
-```bash
-curl \
-  --cacert CA_crt.pem \
-  --key client_key.pem \
-  --cert client_crt.pem \
-  --resolve 'http.domain.com:8080:127.0.0.1'
-  https://host.domain.com:8080/healthz
-```
-
----
-
-### mTLS to gRPC server from proxy
-
-Options to establish mTLS from the http proxy to gRPC server
-
-- `client->http->grpc_health_proxy->mTLS->gRPC server`
-
-in the example below, `grpc_client_crt.pem` and `grpc_client_key.pem` are the TLS client credentials to present to the gRPC server
-
-```bash
-$ grpc_health_proxy --http-listen-addr localhost:8080 \
-                    --http-listen-path=/healthz \
-                    --grpcaddr localhost:50051 \
-                    --grpctls \
-                    --service-name echo.EchoServer \
-                    --grpc-ca-cert=CA_crt.pem \
-                    --grpc-client-cert=grpc_client_crt.pem \
-                    --grpc-client-key=grpc_client_key.pem \
-                    --grpc-sni-server-name=server.domain.com --logtostderr=1 -v 1
-```
 
 ## Installation
 
