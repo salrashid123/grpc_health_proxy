@@ -43,7 +43,7 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --service-name echo.EchoServer --logtostderr=1 -v 1
 ```
 
-```text
+```bash
 curl http://localhost:8080/healthz
 ```
 
@@ -57,7 +57,7 @@ curl http://localhost:8080/healthz
 
 HTTPS listener will use keypairs [http_crt.pem, http_key.pem]
 
-```text
+```bash
 $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --http-listen-path /heatlhz \
                     --grpcaddr localhost:50051 \
@@ -285,6 +285,48 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
     --cacert certs/CA_crt.pem  \
     --resolve 'http.domain.com:8080:127.0.0.1' \
     https://http.domain.com:8080/healthz
+```
+
+#### TLS to Proxy and TLS gRPC service
+
+`client->https->grpc_health_proxy->TLS->gRPC Server`
+
+Note that for convenience, we are reusing the same client and CA certificate during various stages here:
+
+  - Run Proxy:
+
+```bash
+  cd example/
+  grpc_health_proxy \
+    --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --https-listen-cert=certs/http_server_crt.pem \
+    --https-listen-key=certs/http_server_key.pem \
+    --service-name echo.EchoServer \
+    --https-listen-ca=certs/CA_crt.pem \
+    --grpctls \
+    --grpc-ca-cert=certs/CA_crt.pem \
+    --grpc-sni-server-name=grpc.domain.com \
+    --logtostderr=1 -v 10
+```
+
+  - Run gRPC Server
+
+```bash
+  go run src/grpc_server.go \
+    --grpcport 0.0.0.0:50051 \
+    --tlsCert=certs/grpc_server_crt.pem \
+    --tlsKey=certs/grpc_server_key.pem
+```
+
+  - Invoke http proxy
+
+```bash
+  curl -v \
+   --resolve 'http.domain.com:8080:127.0.0.1' \
+   --cacert certs/CA_crt.pem \
+   https://http.domain.com:8080/healthz
 ```
 
 ---

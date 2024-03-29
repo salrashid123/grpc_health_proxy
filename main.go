@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,15 +19,17 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"github.com/golang/glog"
+
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/golang/glog"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
@@ -35,51 +37,52 @@ import (
 )
 
 type ProbeConfig struct {
-	flGrpcServerAddr string
-	flRunCli         bool
-	flHTTPListenAddr string
-	flHTTPListenPath string
-	flServiceName   string
-	flUserAgent     string
-	flConnTimeout   time.Duration
-	flRPCTimeout    time.Duration
-	flGrpcTLS       bool
-	flGrpcTLSNoVerify   bool
-	flGrpcTLSCACert     string
-	flGrpcTLSClientCert string
-	flGrpcTLSClientKey  string
-	flGrpcSNIServerName string
-	flHTTPSTLSServerCert string
-	flHTTPSTLSServerKey string
-	flHTTPSTLSVerifyCA string
+	flGrpcServerAddr       string
+	flRunCli               bool
+	flHTTPListenAddr       string
+	flHTTPListenPath       string
+	flServiceName          string
+	flUserAgent            string
+	flConnTimeout          time.Duration
+	flRPCTimeout           time.Duration
+	flGrpcTLS              bool
+	flGrpcTLSNoVerify      bool
+	flGrpcTLSCACert        string
+	flGrpcTLSClientCert    string
+	flGrpcTLSClientKey     string
+	flGrpcSNIServerName    string
+	flHTTPSTLSServerCert   string
+	flHTTPSTLSServerKey    string
+	flHTTPSTLSVerifyCA     string
 	flHTTPSTLSVerifyClient bool
 }
 
 var (
-	cfg = &ProbeConfig{}
+	cfg  = &ProbeConfig{}
 	opts = []grpc.DialOption{}
 )
 
 type GrpcProbeError struct {
-	Code int
+	Code    int
 	Message string
 }
 
 func NewGrpcProbeError(code int, message string) *GrpcProbeError {
-    return &GrpcProbeError{
-		Code: code,
+	return &GrpcProbeError{
+		Code:    code,
 		Message: message,
 	}
 }
 func (e *GrpcProbeError) Error() string {
-    return e.Message
+	return e.Message
 }
+
 const (
 	StatusConnectionFailure = 1
-	StatusRPCFailure = 2
-	StatusServiceNotFound = 3
-	StatusUnimplemented = 4
-	StatusUnhealthy = 5
+	StatusRPCFailure        = 2
+	StatusServiceNotFound   = 3
+	StatusUnimplemented     = 4
+	StatusUnhealthy         = 5
 )
 
 func init() {
@@ -87,7 +90,7 @@ func init() {
 	flag.StringVar(&cfg.flServiceName, "service-name", "", "service name to check.  If specified, server will ignore ?serviceName= request parameter")
 	flag.StringVar(&cfg.flUserAgent, "user-agent", "grpc_health_proxy", "user-agent header value of health check requests")
 	flag.BoolVar(&cfg.flRunCli, "runcli", false, "execute healthCheck via CLI; will not start webserver")
-	// settings for HTTPS lisenter
+	// settings for HTTPS listener
 	flag.StringVar(&cfg.flHTTPListenAddr, "http-listen-addr", "localhost:8080", "(required) http host:port to listen (default: localhost:8080")
 	flag.StringVar(&cfg.flHTTPListenPath, "http-listen-path", "/", "path to listen for healthcheck traffic (default '/')")
 	flag.StringVar(&cfg.flHTTPSTLSServerCert, "https-listen-cert", "", "TLS Server certificate to for HTTP listner")
@@ -113,12 +116,12 @@ func init() {
 		os.Exit(-1)
 	}
 
-	if cfg.flGrpcServerAddr == "" {		
-		argError("-grpcaddr not specified")		
+	if cfg.flGrpcServerAddr == "" {
+		argError("-grpcaddr not specified")
 	}
 	if !cfg.flRunCli && cfg.flHTTPListenAddr == "" {
 		argError("-http-listen-addr not specified")
-	}	
+	}
 	if cfg.flConnTimeout <= 0 {
 		argError("-connect-timeout must be greater than zero (specified: %v)", cfg.flConnTimeout)
 	}
@@ -149,13 +152,13 @@ func init() {
 	if cfg.flGrpcTLSNoVerify && cfg.flGrpcSNIServerName != "" {
 		argError("cannot specify -grpc-sni-server-name with -grpc-tls-no-verify (server name would not be used)")
 	}
-	if ( (cfg.flHTTPSTLSServerCert == "" && cfg.flHTTPSTLSServerKey != "") || (cfg.flHTTPSTLSServerCert != "" && cfg.flHTTPSTLSServerKey == "") ) {
+	if (cfg.flHTTPSTLSServerCert == "" && cfg.flHTTPSTLSServerKey != "") || (cfg.flHTTPSTLSServerCert != "" && cfg.flHTTPSTLSServerKey == "") {
 		argError("must specify both -https-listen-cert and -https-listen-key")
 	}
 	if cfg.flHTTPSTLSVerifyCA == "" && cfg.flHTTPSTLSVerifyClient {
 		argError("cannot specify -https-listen-ca if https-listen-verify is set (you need a trust CA for client certificate https auth)")
 	}
-	
+
 	glog.V(10).Infof("parsed options:")
 	glog.V(10).Infof("> addr=%s conn_timeout=%s rpc_timeout=%s", cfg.flGrpcServerAddr, cfg.flConnTimeout, cfg.flRPCTimeout)
 	glog.V(10).Infof("> grpctls=%v", cfg.flGrpcTLS)
@@ -188,7 +191,7 @@ func buildGrpcCredentials() (credentials.TransportCredentials, error) {
 		tlsCfg.InsecureSkipVerify = true
 	} else if cfg.flGrpcTLSCACert != "" {
 		rootCAs := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(cfg.flGrpcTLSCACert)
+		pem, err := os.ReadFile(cfg.flGrpcTLSCACert)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load root CA certificates from file (%s) error=%v", cfg.flGrpcTLSCACert, err)
 		}
@@ -240,13 +243,13 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
 			// wrap a grpC NOT_FOUND as grpcProbeError.
 			// https://github.com/grpc/grpc/blob/master/doc/health-checking.md
-			// if the service name is not registerered, the server returns a NOT_FOUND GPRPC status. 
+			// if the service name is not registerered, the server returns a NOT_FOUND GPRPC status.
 			// the Check for a not found should "return nil, status.Error(codes.NotFound, "unknown service")"
-			glog.Warningf("error Service Not Found %v", err )
+			glog.Warningf("error Service Not Found %v", err)
 			return healthpb.HealthCheckResponse_SERVICE_UNKNOWN, NewGrpcProbeError(StatusServiceNotFound, "StatusServiceNotFound")
 		} else {
 			glog.Warningf("error: health rpc failed: ", err)
-		}		
+		}
 	}
 	rpcDuration := time.Since(rpcStart)
 	// otherwise, retrurn gRPC-HC status
@@ -258,9 +261,9 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	var serviceName string
-	if (cfg.flServiceName != "") {
+	if cfg.flServiceName != "" {
 		serviceName = cfg.flServiceName
-	}	
+	}
 	keys, ok := r.URL.Query()["serviceName"]
 	if ok && len(keys[0]) > 0 {
 		serviceName = keys[0]
@@ -269,7 +272,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := checkService(r.Context(), serviceName)
 	// first handle errors derived from gRPC-codes
 	if err != nil {
-        if pe, ok := err.(*GrpcProbeError); ok {
+		if pe, ok := err.(*GrpcProbeError); ok {
 			glog.Errorf("HealtCheck Probe Error: %v", pe.Error())
 			switch pe.Code {
 			case StatusConnectionFailure:
@@ -277,9 +280,9 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 			case StatusRPCFailure:
 				http.Error(w, err.Error(), http.StatusBadGateway)
 			case StatusUnimplemented:
-				http.Error(w, err.Error(), http.StatusNotImplemented)				
+				http.Error(w, err.Error(), http.StatusNotImplemented)
 			case StatusServiceNotFound:
-				http.Error(w, fmt.Sprintf("%s ServiceNotFound", cfg.flServiceName), http.StatusNotFound)									
+				http.Error(w, fmt.Sprintf("%s ServiceNotFound", cfg.flServiceName), http.StatusNotFound)
 			default:
 				http.Error(w, err.Error(), http.StatusBadGateway)
 			}
@@ -288,23 +291,23 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// then grpc-hc codes
-	glog.Infof("%s %v",  cfg.flServiceName,  resp.String())
+	glog.Infof("%s %v", cfg.flServiceName, resp.String())
 	switch resp {
 	case healthpb.HealthCheckResponse_SERVING:
 		fmt.Fprintf(w, "%s %v", cfg.flServiceName, resp)
 	case healthpb.HealthCheckResponse_NOT_SERVING:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)	
+		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
 	case healthpb.HealthCheckResponse_UNKNOWN:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)	
+		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
 	case healthpb.HealthCheckResponse_SERVICE_UNKNOWN:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusNotFound)	
+		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusNotFound)
 	}
 }
 
 func main() {
 
 	opts = append(opts, grpc.WithUserAgent(cfg.flUserAgent))
-	opts = append(opts, grpc.WithBlock())		
+	opts = append(opts, grpc.WithBlock())
 	if cfg.flGrpcTLS {
 		creds, err := buildGrpcCredentials()
 		if err != nil {
@@ -312,10 +315,10 @@ func main() {
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
-	
-	if (cfg.flRunCli) {
+
+	if cfg.flRunCli {
 		resp, err := checkService(context.Background(), cfg.flServiceName)
 		if err != nil {
 			if pe, ok := err.(*GrpcProbeError); ok {
@@ -334,41 +337,40 @@ func main() {
 				}
 			}
 		}
-		if (resp != healthpb.HealthCheckResponse_SERVING) {
-			glog.Errorf("HealtCheck Probe Error: service %s failed with reason: %v",  cfg.flServiceName,  resp.String())
+		if resp != healthpb.HealthCheckResponse_SERVING {
+			glog.Errorf("HealtCheck Probe Error: service %s failed with reason: %v", cfg.flServiceName, resp.String())
 			os.Exit(StatusUnhealthy)
 		} else {
-			glog.Infof("%s %v",  cfg.flServiceName,  resp.String())
+			glog.Infof("%s %v", cfg.flServiceName, resp.String())
 		}
 	} else {
 
 		tlsConfig := &tls.Config{}
-		if (cfg.flHTTPSTLSVerifyClient) {
-			caCert, err := ioutil.ReadFile(cfg.flHTTPSTLSVerifyCA)
+		if cfg.flHTTPSTLSVerifyClient {
+			caCert, err := os.ReadFile(cfg.flHTTPSTLSVerifyCA)
 			if err != nil {
 				glog.Fatal(err)
 			}
 			caCertPool := x509.NewCertPool()
-			if !caCertPool.AppendCertsFromPEM(caCert){
+			if !caCertPool.AppendCertsFromPEM(caCert) {
 				glog.Fatal("Unable to add https server root CA certs")
 			}
 
 			tlsConfig = &tls.Config{
-				ClientCAs: caCertPool,
+				ClientCAs:  caCertPool,
 				ClientAuth: tls.RequireAndVerifyClientCert,
 			}
 		}
-		tlsConfig.BuildNameToCertificate()
 
 		srv := &http.Server{
-			Addr: cfg.flHTTPListenAddr,
+			Addr:      cfg.flHTTPListenAddr,
 			TLSConfig: tlsConfig,
 		}
 		http2.ConfigureServer(srv, &http2.Server{})
 		http.HandleFunc(cfg.flHTTPListenPath, healthHandler)
-		
+
 		var err error
-		if (cfg.flHTTPSTLSServerCert != "" && cfg.flHTTPSTLSServerKey != "" ) {
+		if cfg.flHTTPSTLSServerCert != "" && cfg.flHTTPSTLSServerKey != "" {
 			err = srv.ListenAndServeTLS(cfg.flHTTPSTLSServerCert, cfg.flHTTPSTLSServerKey)
 		} else {
 			err = srv.ListenAndServe()
