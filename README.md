@@ -16,6 +16,16 @@ This utility uses similar flags, cancellation and timing snippets for the grpc c
 
 > This is not an official Google project and is unsupported by Google
 
+### Build
+
+You can either build from source
+
+```bash
+go build -o grpc_health_proxy main.go
+```
+
+or use one of the binaries in `Releases` section or the docker image
+
 **EXAMPLES**
 
 Check the status of an upstream gRPC serviceName `echo.EchoService` listening on `:50051`:
@@ -24,9 +34,9 @@ For any mode, enable verbose logging with glog levels: append `--logtostderr=1 -
 
 ### HTTP to gRPC HealthCheck proxy:
 
-`grpc_health_probe` will listen on `:8080` for HTTP healthcheck requests at path `/healthz`.
+`grpc_health_proxy` will listen on `:8080` for HTTP healthcheck requests at path `/healthz`.
 
-```text
+```bash
 $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --http-listen-path /healthz \
                     --grpcaddr localhost:50051 \
@@ -43,7 +53,7 @@ curl http://localhost:8080/healthz
 
 ### HTTPS to gRPC HealthCheck proxy:
 
-`grpc_health_probe` will listen on `:8080` for HTTPS healthcheck requests at path `/healthz`.
+`grpc_health_proxy` will listen on `:8080` for HTTPS healthcheck requests at path `/healthz`.
 
 HTTPS listener will use keypairs [http_crt.pem, http_key.pem]
 
@@ -56,7 +66,7 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --grpc-service-name echo.EchoServer --logtostderr=1 -v 1
 ```
 
-```text
+```bash
 curl \
   --cacert CA_crt.pem \
   --resolve 'http.domain.com:8080:127.0.0.1' \
@@ -67,11 +77,11 @@ curl \
 
 ### mTLS HTTPS to gRPC HealthCheck proxy:
 
-`grpc_health_probe` will listen on `:8080` for HTTPS with mTLS healthcheck requests at path `/healthz`.
+`grpc_health_proxy` will listen on `:8080` for HTTPS with mTLS healthcheck requests at path `/healthz`.
 
 HTTPS listener will use keypairs [http_crt.pem, http_crt.pem] and verify client certificates issued by `CA_crt.pem`
 
-```text
+```bash
 $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --http-listen-path /healthz \
                     --grpcaddr localhost:50051 \
@@ -82,7 +92,7 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --https-listen-ca=CA_crt.pem --logtostderr=1 -v 1
 ```
 
-```text
+```bash
 curl \
   --cacert CA_crt.pem \
   --key client_key.pem \
@@ -101,7 +111,7 @@ Options to establish mTLS from the http proxy to gRPC server
 
 in the example below, `grpc_client_crt.pem` and `grpc_client_key.pem` are the TLS client credentials to present to the gRPC server
 
-```text
+```bash
 $ grpc_health_proxy --http-listen-addr localhost:8080 \
                     --http-listen-path=/healthz \
                     --grpcaddr localhost:50051 \
@@ -117,27 +127,27 @@ $ grpc_health_proxy --http-listen-addr localhost:8080 \
 
 Run this application stand alone or within a Docker image with TLS certificates mounted appropriately.
 
-The [Dockerfile](Dockerfile) provided here for the proxy but you are _strongly_ encouraged to deploy your own
-docker image of the same:
+#### as docker
 
-  - ```docker.io/salrashid123/grpc_health_proxy```
+The [Dockerfile](Dockerfile) and Bazel build directives are provided here for you to build your own image.
+
+  - [docker.io/salrashid123/grpc_health_proxy](https://hub.docker.com/repository/docker/salrashid123/grpc_health_proxy/general)
+
     **NOTE:** the default docker image listens on containerPort `:8080`
 
-
->> Note, the application an healthcheck docker image now is on `docker.io`.  Please generate and host your own images as necessary:
-
-* `gcr.io/cloud-solutions-images/grpc_health_proxy` =-> `docker.io/salrashid123/grpc_health_proxy`
+#### from source
 
 To compile the proxy directly, run
 
-```
+```bash
 go build -o grpc_health_proxy main.go
 ```
 
-or download a binary from the Release page.
+#### from binary
 
-The proxy version also correspond to docker image tags.
--  `docker.io/salrashid123/grpc_health_proxy:1.0.0` `sha256:bba655892eedd2a59a0197f0949faad24f49546a6e548489be545c56776abbf9`)
+Download a binary from the Release page.
+
+The proxy version also correspond to docker image version tags (eg `docker.io/salrashid123/grpc_health_proxy:1.1.0`)
 
 ## Required Options
 
@@ -215,7 +225,8 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 `client->http->grpc_health_proxy->gRPC Server`
 
   - Run Proxy:
-```
+
+```bash
   cd example/
   grpc_health_proxy \
     --http-listen-addr localhost:8080 \
@@ -226,14 +237,16 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 ```
 
   - Run gRPC Server
-```
+
+```bash
   go run src/grpc_server.go \
     --grpcport 0.0.0.0:50051 \
     --insecure
 ```
 
   - Invoke http proxy
-```
+
+```bash
   curl -v \
     --resolve 'http.domain.com:8080:127.0.0.1' \
     http://http.domain.com:8080/healthz
@@ -246,6 +259,7 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 `client->https->grpc_health_proxy->gRPC Server`
 
   - Run Proxy:
+
 ```bash
   cd example/
   grpc_health_proxy \
@@ -259,12 +273,14 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 ```
 
   - Run gRPC Server
-```
+
+```bash
   go run src/grpc_server.go --grpcport 0.0.0.0:50051 --insecure
 ```
 
   - Invoke http proxy
-```
+
+```bash
   curl -v \
     --cacert certs/CA_crt.pem  \
     --resolve 'http.domain.com:8080:127.0.0.1' \
@@ -280,6 +296,7 @@ To use, first prepare the gRPC server and then run `grpc_health_proxy`.  Use the
 Note that for convenience, we are reusing the same client and CA certificate during various stages here:
 
   - Run Proxy:
+
 ```bash
   cd example/
   grpc_health_proxy \
@@ -300,7 +317,8 @@ Note that for convenience, we are reusing the same client and CA certificate dur
 ```
 
   - Run gRPC Server
-```
+
+```bash
   go run src/grpc_server.go \
     --grpcport 0.0.0.0:50051 \
     --tlsCert=certs/grpc_server_crt.pem \
@@ -308,7 +326,8 @@ Note that for convenience, we are reusing the same client and CA certificate dur
 ```
 
   - Invoke http proxy
-```
+
+```bash
   curl -v \
    --resolve 'http.domain.com:8080:127.0.0.1' \
    --cacert certs/CA_crt.pem \
@@ -319,7 +338,7 @@ Note that for convenience, we are reusing the same client and CA certificate dur
 
 Or as a docker container from the repo root to mount certs:
 
-```
+```bash
   docker run  -v `pwd`/certs:/certs/ \
     -p 8080:8080 \
     --net=host  \
@@ -389,7 +408,7 @@ spec:
         - containerPort: 50051
 ```
 
-The docker image used for the gRPC Server is taken from `eample/` folder in the same repo
+The docker image used for the gRPC Server is taken from `example/` folder in the same repo
 
 ---
 
@@ -416,7 +435,7 @@ $ echo $?
 
 - 5: Unhealthy
 
-```
+```bash
 $ ./grpc_health_proxy \
    --runcli \
    --grpcaddr localhost:50051 \
@@ -460,3 +479,38 @@ HealtCheck Probe Error: StatusServiceNotFound
 $ echo $?
 3
 ```
+
+#### Verify Release Binary
+
+If you download a binary from the "Releases" page, you can verify the signature with GPG:
+
+```bash
+gpg --keyserver keyserver.ubuntu.com --recv-keys 5D8EA7261718FE5728BA937C97341836616BF511
+
+## to verify the checksum file for a given release:
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.1.0/grpc_health_proxy_1.1.0_checksums.txt
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.1.0/grpc_health_proxy_1.1.0_checksums.txt.sig
+
+gpg --verify grpc_health_proxy_1.1.0_checksums.txt.sig grpc_health_proxy_1.1.0_checksums.txt
+```
+
+#### Verify Container Image Signature
+
+The images are also signed using my github address (`salrashid123@gmail`).  If you really want to, you can verify each signature usign `cosign`:
+
+```bash
+## for tag/version  index.docker.io/salrashid123/grpc_health_proxy:1.1.0:
+IMAGE="index.docker.io/salrashid123/grpc_health_proxy@sha256:4e65829ecf0a523c4d3a16ac98c19d3476c867dc5bd78f0d4ef429907bc18572"
+
+## i signed it directly, keyless:
+# $ cosign sign $IMAGE
+
+## which you can verify:
+$ cosign verify --certificate-identity=salrashid123@gmail.com  --certificate-oidc-issuer=https://github.com/login/oauth $IMAGE | jq '.'
+
+## search and get 
+# $ rekor-cli search --rekor_server https://rekor.sigstore.dev  --email salrashid123@gmail.com
+# $ rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
+```
+
+These images were built using bazel so you should get the same container hash (i.e., deterministic builds)
