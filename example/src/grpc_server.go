@@ -27,6 +27,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"math/rand"
 	"net"
@@ -50,6 +52,8 @@ import (
 var (
 	tlsCert             = flag.String("tlsCert", "", "tls Certificate")
 	tlsKey              = flag.String("tlsKey", "", "tls Key")
+	mtlsBackendCA       = flag.String("mtlsBackendCA", "", "tls CA for gRPC server")
+	backendMTLS         = flag.Bool("backendMTLS", false, "require mTLS to backend")
 	grpcport            = flag.String("grpcport", "", "grpcport")
 	insecure            = flag.Bool("insecure", false, "startup without TLS")
 	unhealthyproability = flag.Int("unhealthyproability", 0, "percentage chance the service is unhealthy (0->100)")
@@ -132,11 +136,36 @@ func main() {
 		if *tlsCert == "" || *tlsKey == "" {
 			log.Fatalf("Must set --tlsCert and tlsKey if --insecure flags is not set")
 		}
-		ce, err := credentials.NewServerTLSFromFile(*tlsCert, *tlsKey)
-		if err != nil {
-			log.Fatalf("Failed to generate credentials %v", err)
+
+		if *backendMTLS && *mtlsBackendCA == "" {
+			log.Fatalf("Must set a trust CA for backend mtls")
 		}
-		sopts = append(sopts, grpc.Creds(ce))
+
+		server1_cert, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
+		if err != nil {
+			log.Fatalf("error reading server certs")
+		}
+
+		var tlsConfig *tls.Config
+		if *backendMTLS {
+			clientCaCert, err := os.ReadFile(*mtlsBackendCA)
+			if err != nil {
+				log.Fatalf("mtls enabled but cannot read mtlsBackendCA cert")
+			}
+			clientCaCertPool := x509.NewCertPool()
+			clientCaCertPool.AppendCertsFromPEM(clientCaCert)
+
+			tlsConfig = &tls.Config{
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientCAs:    clientCaCertPool,
+				Certificates: []tls.Certificate{server1_cert},
+			}
+		} else {
+			tlsConfig = &tls.Config{
+				Certificates: []tls.Certificate{server1_cert},
+			}
+		}
+		sopts = append(sopts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 	}
 
 	s := grpc.NewServer(sopts...)
