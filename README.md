@@ -32,6 +32,7 @@ The following in the `example/` folder checks the status of an upstream gRPC ser
 
 `client->http->grpc_health_proxy->gRPC Server`
 
+
   - Run gRPC Server
 
 ```bash
@@ -40,9 +41,7 @@ go run src/grpc_server.go \
     --insecure
 ```
 
-- Run Proxy:
-
-you can either build the proxy from source or use the binary in releases page:
+  - Run Proxy
 
 ```bash
 grpc_health_proxy \
@@ -51,14 +50,19 @@ grpc_health_proxy \
     --grpcaddr localhost:50051 \
     --service-name echo.EchoServer \
     --logtostderr=1 -v 10
+
+
+I0329 21:05:37.969302 1128850 main.go:229] Running HealthCheck for service:  echo.EchoServer
+I0329 21:05:37.970145 1128850 main.go:253] time elapsed: connect=763.1µs rpc=848.974µs
+I0329 21:05:37.970289 1128850 main.go:291] echo.EchoServer SERVING
 ```
 
   - Invoke http proxy
 
 ```bash
-  curl -v \
-    --resolve 'http.domain.com:8080:127.0.0.1' \
-    http://http.domain.com:8080/healthz
+$ curl -v     --resolve 'http.domain.com:8080:127.0.0.1'     http://http.domain.com:8080/healthz
+
+echo.EchoServer SERVING
 ```
 
 ---
@@ -174,10 +178,6 @@ grpc_health_proxy \
     --service-name echo.EchoServer \
     --logtostderr=1 -v 10
 
-
-I0329 21:05:37.969302 1128850 main.go:229] Running HealthCheck for service:  echo.EchoServer
-I0329 21:05:37.970145 1128850 main.go:253] time elapsed: connect=763.1µs rpc=848.974µs
-I0329 21:05:37.970289 1128850 main.go:291] echo.EchoServer SERVING
 ```
 
   - Run gRPC Server
@@ -192,8 +192,6 @@ go run src/grpc_server.go \
 
 ```bash
 $ curl -v     --resolve 'http.domain.com:8080:127.0.0.1'     http://http.domain.com:8080/healthz
-
-echo.EchoServer SERVING
 ```
 
 #### TLS to Proxy
