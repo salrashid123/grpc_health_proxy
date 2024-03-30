@@ -60,9 +60,15 @@ I0329 21:05:37.970289 1128850 main.go:291] echo.EchoServer SERVING
   - Invoke http proxy
 
 ```bash
-$ curl -v     --resolve 'http.domain.com:8080:127.0.0.1'     http://http.domain.com:8080/healthz
+$ curl -s --resolve 'http.domain.com:8080:127.0.0.1' \
+    http://http.domain.com:8080/healthz
 
 echo.EchoServer SERVING
+
+# or as query parameter
+$ curl -s \
+   --resolve 'http.domain.com:8080:127.0.0.1'  \
+    http://http.domain.com:8080/healthz?serviceName=echo.EchoServer
 ```
 
 ---
