@@ -1,6 +1,6 @@
 module github.com/salrashid123/grpc_health_proxy
 
-go 1.20
+go 1.21
 
 require (
 	github.com/golang/glog v1.2.1
