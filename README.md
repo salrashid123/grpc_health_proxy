@@ -460,10 +460,10 @@ If you download a binary from the "Releases" page, you can verify the signature 
 gpg --keyserver keyserver.ubuntu.com --recv-keys 5D8EA7261718FE5728BA937C97341836616BF511
 
 ## to verify the checksum file for a given release:
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.1.0/grpc_health_proxy_1.1.0_checksums.txt
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.1.0/grpc_health_proxy_1.1.0_checksums.txt.sig
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.2.1/grpc_health_proxy_1.2.1_checksums.txt
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.2.1/grpc_health_proxy_1.2.1_checksums.txt.sig
 
-gpg --verify grpc_health_proxy_1.1.0_checksums.txt.sig grpc_health_proxy_1.1.0_checksums.txt
+gpg --verify grpc_health_proxy_1.2.1_checksums.txt.sig grpc_health_proxy_1.2.1_checksums.txt
 ```
 
 #### Verify Container Image Signature
@@ -472,7 +472,7 @@ The images are also signed using my github address (`salrashid123@gmail`).  If y
 
 ```bash
 ## for tag/version  index.docker.io/salrashid123/grpc_health_proxy:1.1.0:
-IMAGE="index.docker.io/salrashid123/grpc_health_proxy@sha256:4e65829ecf0a523c4d3a16ac98c19d3476c867dc5bd78f0d4ef429907bc18572"
+IMAGE="index.docker.io/salrashid123/grpc_health_proxy@sha256:fea07c09281fbac273a0e02c948e3bfd4d1f6d23c76e6e7157aa8d8d9bbaad52"
 
 ## i signed it directly, keyless:
 # $ cosign sign $IMAGE
