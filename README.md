@@ -18,7 +18,7 @@ This utility uses similar flags, cancellation and timing snippets for the grpc c
 
 ### Build
 
-You can either build from source
+You can either build from source or with `bazel`
 
 ```bash
 go build -o grpc_health_proxy main.go
@@ -145,6 +145,16 @@ Configuration options for HTTTP(s) listener supports TLS and mTLS
 | **`-https-listen-key`** | server private key for https listner |
 | **`-https-listen-verify`** | option to enable mTLS for HTTPS requests |
 | **`-https-listen-ca`** | trust CA for mTLS |
+
+
+## Prometheus Options
+
+Configuration option for the Prometheus metrics listener endpoint and path
+
+| Option | Description |
+|:------------|-------------|
+| **`-metrics-http-path`** | metrics endpoint path (default: /metics") |
+| **`-metrics-http-listen-addr`** |http host:port for metrics endpoint (default: localhost:9000") |
 
 ----
 
@@ -475,4 +485,88 @@ $ cosign verify --certificate-identity=salrashid123@gmail.com  --certificate-oid
 # $ rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
 ```
 
+#### Bazel
+
 These images were built using bazel so you should get the same container hash (i.e., deterministic builds)
+
+```bash
+bazel run :gazelle -- update-repos -from_file=go.mod -prune=true -to_macro=repositories.bzl%go_repositories
+
+bazel run :server-image
+
+bazel run :main -- --http-listen-addr localhost:8080 \
+    --http-listen-path=/healthz \
+    --grpcaddr localhost:50051 \
+    --service-name echo.EchoServer \
+    --logtostderr=1 -v 10
+```
+
+### Metrics
+
+The healthcheck hander also exposes service statistics through prometheus endpoint.
+
+* `grpc_health_check_seconds`:  Histogram for the overall latency to http healtcheck endpoint (eg `/healthz`)
+* `grpc_health_check_service_duration_seconds`: Histogram for the latency per serviceName
+* `grpc_health_check_service_requests`: Counter and status per serviceName
+
+
+To see this locally, run prometheus (i'm using docker here)
+
+```bash
+docker run \
+    --net=host \
+    -p 9090:9090 \
+    -v `pwd`/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+    prom/prometheus
+## ui:  http://localhost:9090/graph?g0.expr=grpc_health_check_service_requests&g0.tab=1&g0.display_mode=lines&g0.show_exemplars=0&g0.range_input=1h
+
+## then send requests
+# for ((i=1;i<=500;i++)); do   curl -s --resolve 'http.domain.com:8080:127.0.0.1' "http://http.domain.com:8080/healthz"; sleep 1; done
+
+## or also attach grafana to the prometheus service
+# docker run --net=host -p 3000:3000 grafana/grafana
+## ui:  http://localhost:3000
+```
+
+The sample metrics displayed at `http://localhost:9000/metrics` shows
+
+```log
+# HELP grpc_health_check_seconds Duration of HTTP requests.
+# TYPE grpc_health_check_seconds histogram
+grpc_health_check_seconds_bucket{path="/healthz",le="0.005"} 447
+grpc_health_check_seconds_bucket{path="/healthz",le="0.01"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="0.025"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="0.05"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="0.1"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="0.25"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="0.5"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="1"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="2.5"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="5"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="10"} 448
+grpc_health_check_seconds_bucket{path="/healthz",le="+Inf"} 448
+grpc_health_check_seconds_sum{path="/healthz"} 0.8027037920000004
+grpc_health_check_seconds_count{path="/healthz"} 448
+
+# HELP grpc_health_check_service_duration_seconds Duration of HTTP requests per service.
+# TYPE grpc_health_check_service_duration_seconds histogram
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.005"} 447
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.01"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.025"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.05"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.1"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.25"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="0.5"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="1"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="2.5"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="5"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="10"} 448
+grpc_health_check_service_duration_seconds_bucket{service_name="echo.EchoServer",le="+Inf"} 448
+grpc_health_check_service_duration_seconds_sum{service_name="echo.EchoServer"} 0.7760661480000001
+grpc_health_check_service_duration_seconds_count{service_name="echo.EchoServer"} 448
+
+# HELP grpc_health_check_service_requests backend status, partitioned by status code and service_name.
+# TYPE grpc_health_check_service_requests counter
+grpc_health_check_service_requests{code="NOT_SERVING",service_name="echo.EchoServer"} 32
+grpc_health_check_service_requests{code="SERVING",service_name="echo.EchoServer"} 416
+```

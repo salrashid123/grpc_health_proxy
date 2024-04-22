@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -33,33 +34,55 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
-	"golang.org/x/net/http2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type ProbeConfig struct {
-	flGrpcServerAddr       string
-	flRunCli               bool
-	flHTTPListenAddr       string
-	flHTTPListenPath       string
-	flServiceName          string
-	flUserAgent            string
-	flConnTimeout          time.Duration
-	flRPCTimeout           time.Duration
-	flGrpcTLS              bool
-	flGrpcTLSNoVerify      bool
-	flGrpcTLSCACert        string
-	flGrpcTLSClientCert    string
-	flGrpcTLSClientKey     string
-	flGrpcSNIServerName    string
-	flHTTPSTLSServerCert   string
-	flHTTPSTLSServerKey    string
-	flHTTPSTLSVerifyCA     string
-	flHTTPSTLSVerifyClient bool
+	flGrpcServerAddr        string
+	flRunCli                bool
+	flHTTPListenAddr        string
+	flMetricsHTTPListenAddr string
+	flMetricsHTTPPath       string
+	flHTTPListenPath        string
+	flServiceName           string
+	flUserAgent             string
+	flConnTimeout           time.Duration
+	flRPCTimeout            time.Duration
+	flGrpcTLS               bool
+	flGrpcTLSNoVerify       bool
+	flGrpcTLSCACert         string
+	flGrpcTLSClientCert     string
+	flGrpcTLSClientKey      string
+	flGrpcSNIServerName     string
+	flHTTPSTLSServerCert    string
+	flHTTPSTLSServerKey     string
+	flHTTPSTLSVerifyCA      string
+	flHTTPSTLSVerifyClient  bool
 }
 
 var (
 	cfg  = &ProbeConfig{}
 	opts = []grpc.DialOption{}
+
+	httpDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "grpc_health_check_seconds",
+		Help: "Duration of HTTP requests.",
+	}, []string{"path"})
+
+	serviceDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "grpc_health_check_service_duration_seconds",
+		Help: "Duration of HTTP requests per service.",
+	}, []string{"service_name"})
+
+	grpcReqs = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "grpc_health_check_service_requests",
+			Help: "backend status, partitioned by status code and service_name.",
+		},
+		[]string{"code", "service_name"},
+	)
 )
 
 type GrpcProbeError struct {
@@ -85,6 +108,16 @@ const (
 	StatusUnhealthy         = 5
 )
 
+func prometheusMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route := mux.CurrentRoute(r)
+		path, _ := route.GetPathTemplate()
+		timer := prometheus.NewTimer(httpDuration.WithLabelValues(path))
+		next.ServeHTTP(w, r)
+		timer.ObserveDuration()
+	})
+}
+
 func init() {
 	flag.StringVar(&cfg.flGrpcServerAddr, "grpcaddr", "", "(required) tcp host:port to connect")
 	flag.StringVar(&cfg.flServiceName, "service-name", "", "service name to check.  If specified, server will ignore ?serviceName= request parameter")
@@ -92,6 +125,8 @@ func init() {
 	flag.BoolVar(&cfg.flRunCli, "runcli", false, "execute healthCheck via CLI; will not start webserver")
 	// settings for HTTPS listener
 	flag.StringVar(&cfg.flHTTPListenAddr, "http-listen-addr", "localhost:8080", "(required) http host:port to listen (default: localhost:8080")
+	flag.StringVar(&cfg.flMetricsHTTPListenAddr, "metrics-http-listen-addr", "localhost:9000", "http host:port for metrics endpoint (default: localhost:9000")
+	flag.StringVar(&cfg.flMetricsHTTPPath, "metrics-http-path", "/metrics", "http path metrics endpoint (default:  /metrics")
 	flag.StringVar(&cfg.flHTTPListenPath, "http-listen-path", "/", "path to listen for healthcheck traffic (default '/')")
 	flag.StringVar(&cfg.flHTTPSTLSServerCert, "https-listen-cert", "", "TLS Server certificate to for HTTP listner")
 	flag.StringVar(&cfg.flHTTPSTLSServerKey, "https-listen-key", "", "TLS Server certificate key to for HTTP listner")
@@ -208,6 +243,9 @@ func buildGrpcCredentials() (credentials.TransportCredentials, error) {
 
 func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheckResponse_ServingStatus, error) {
 
+	timer := prometheus.NewTimer(serviceDuration.WithLabelValues(serviceName))
+	defer timer.ObserveDuration()
+
 	glog.V(10).Infof("establishing connection")
 	connStart := time.Now()
 	dialCtx, dialCancel := context.WithTimeout(ctx, cfg.flConnTimeout)
@@ -235,12 +273,15 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 	if err != nil {
 		// first handle and return gRPC-level errors
 		if stat, ok := status.FromError(err); ok && stat.Code() == codes.Unimplemented {
+			defer grpcReqs.WithLabelValues(codes.Unimplemented.String(), serviceName).Inc()
 			glog.Warningf("error: this server does not implement the grpc health protocol (grpc.health.v1.Health)")
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusUnimplemented, "StatusUnimplemented")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.DeadlineExceeded {
+			defer grpcReqs.WithLabelValues(codes.DeadlineExceeded.String(), serviceName).Inc()
 			glog.Warningf("error timeout: health rpc did not complete within ", cfg.flRPCTimeout)
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusRPCFailure, "StatusRPCFailure")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
+			defer grpcReqs.WithLabelValues(codes.NotFound.String(), serviceName).Inc()
 			// wrap a grpC NOT_FOUND as grpcProbeError.
 			// https://github.com/grpc/grpc/blob/master/doc/health-checking.md
 			// if the service name is not registerered, the server returns a NOT_FOUND GPRPC status.
@@ -248,8 +289,11 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 			glog.Warningf("error Service Not Found %v", err)
 			return healthpb.HealthCheckResponse_SERVICE_UNKNOWN, NewGrpcProbeError(StatusServiceNotFound, "StatusServiceNotFound")
 		} else {
+			defer grpcReqs.WithLabelValues(codes.Unknown.String(), serviceName).Inc()
 			glog.Warningf("error: health rpc failed: ", err)
 		}
+	} else {
+		defer grpcReqs.WithLabelValues(resp.GetStatus().String(), serviceName).Inc()
 	}
 	rpcDuration := time.Since(rpcStart)
 	// otherwise, retrurn gRPC-HC status
@@ -362,12 +406,20 @@ func main() {
 			}
 		}
 
+		r := mux.NewRouter()
+		r.Use(prometheusMiddleware)
+		r.Path(cfg.flHTTPListenPath).HandlerFunc(healthHandler)
+
+		go func() {
+			http.Handle(cfg.flMetricsHTTPPath, promhttp.Handler())
+			glog.Error(http.ListenAndServe(cfg.flMetricsHTTPListenAddr, nil))
+		}()
+
 		srv := &http.Server{
 			Addr:      cfg.flHTTPListenAddr,
 			TLSConfig: tlsConfig,
+			Handler:   r,
 		}
-		http2.ConfigureServer(srv, &http2.Server{})
-		http.HandleFunc(cfg.flHTTPListenPath, healthHandler)
 
 		var err error
 		if cfg.flHTTPSTLSServerCert != "" && cfg.flHTTPSTLSServerKey != "" {
