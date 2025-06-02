@@ -1,7 +1,8 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_push", "oci_tarball")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_tarball", "oci_image_index")
-load("@bazel_gazelle//:def.bzl", "gazelle")
+load("//:transition.bzl", "multi_arch")
 
 gazelle(name = "gazelle")
 
@@ -16,9 +17,7 @@ go_binary(
 
 go_library(
     name = "cmd_lib",
-    srcs = [
-        "main.go",
-    ],
+    srcs = ["main.go"],
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_golang_glog//:go_default_library",
@@ -45,39 +44,80 @@ pkg_tar(
 oci_image(
     name = "server-image",
     base = "@distroless_base",
-    tars = [":app-tar"],   
-    entrypoint = ["/grpc_health_proxy"],
     cmd = [],
+    entrypoint = ["/grpc_health_proxy"],
     env = {},
     exposed_ports = [
         "8080/tcp",
-    ],    
+    ],
+    tars = [
+        ":app-tar",
+    ],
 )
 
-oci_tarball(
-    name = "tar-docker",
-    image = "server-image",
-    format = "docker",
-    repo_tags = ["index.docker.io/salrashid123/grpc_health_proxy"],
+multi_arch(
+    name = "images-linux-amd64",
+    image = ":server-image",
+    platforms = [
+        "//:linux_amd64",       
+    ],
+)
+
+multi_arch(
+    name = "images-linux-arm64",
+    image = ":server-image",
+    platforms = [
+        "//:linux_arm64",
+    ],
 )
 
 oci_image_index(
-    name = "app-index",
+    name = "index",
     images = [
-        ":server-image",
-    ]
+        ":images-linux-amd64",
+        ":images-linux-arm64",      
+    ],
 )
 
 oci_tarball(
     name = "tar-oci-index",
-    image = ":app-index",
     format = "oci",
+    image = ":index",
     repo_tags = ["index.docker.io/salrashid123/grpc_health_proxy"],
 )
 
+
 oci_push(
     name = "push-image",
-    image = ":server-image",
+    image = ":index",
+    remote_tags = ["latest"],
     repository = "index.docker.io/salrashid123/grpc_health_proxy",
-    remote_tags = ["latest"]
+)
+
+platform(
+    name = "linux_arm",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+platform(
+    name = "linux_x86",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+alias(
+    name = "linux_amd64",
+    actual = ":linux_x86",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "linux_arm64",
+    actual = ":linux_arm",
+    visibility = ["//visibility:public"],
 )

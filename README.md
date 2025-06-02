@@ -475,14 +475,15 @@ The images are also signed using my github address (`salrashid123@gmail`).  If y
 IMAGE="index.docker.io/salrashid123/grpc_health_proxy@sha256:fea07c09281fbac273a0e02c948e3bfd4d1f6d23c76e6e7157aa8d8d9bbaad52"
 
 ## i signed it directly, keyless:
-# $ cosign sign $IMAGE
+export COSIGN_EXPERIMENTAL=1
+# cosign sign $IMAGE
 
 ## which you can verify:
 $ cosign verify --certificate-identity=salrashid123@gmail.com  --certificate-oidc-issuer=https://github.com/login/oauth $IMAGE | jq '.'
 
 ## search and get 
-# $ rekor-cli search --rekor_server https://rekor.sigstore.dev  --email salrashid123@gmail.com
-# $ rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
+# rekor-cli search --rekor_server https://rekor.sigstore.dev  --email salrashid123@gmail.com
+# rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
 ```
 
 #### Bazel
@@ -499,6 +500,12 @@ bazel run :main -- --http-listen-addr localhost:8080 \
     --grpcaddr localhost:50051 \
     --service-name echo.EchoServer \
     --logtostderr=1 -v 10
+
+## to build the oci image tar
+# bazel build cmd:tar-oci-index
+
+## to push the image a repo
+# bazel run cmd:push-image     
 ```
 
 ### Metrics
