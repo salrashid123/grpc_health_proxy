@@ -477,10 +477,10 @@ If you download a binary from the "Releases" page, you can verify the signature 
 gpg --keyserver keyserver.ubuntu.com --recv-keys 5D8EA7261718FE5728BA937C97341836616BF511
 
 ## to verify the checksum file for a given release:
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.2/grpc_health_proxy_1.3.2_checksums.txt
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.2/grpc_health_proxy_1.3.2_checksums.txt.sig
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.3/grpc_health_proxy_1.3.3_checksums.txt
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.3/grpc_health_proxy_1.3.3_checksums.txt.sig
 
-gpg --verify grpc_health_proxy_1.3.2_checksums.txt.sig grpc_health_proxy_1.3.2_checksums.txt
+gpg --verify grpc_health_proxy_1.3.3_checksums.txt.sig grpc_health_proxy_1.3.3_checksums.txt
 ```
 
 #### Verify Container Image Signature
@@ -488,8 +488,8 @@ gpg --verify grpc_health_proxy_1.3.2_checksums.txt.sig grpc_health_proxy_1.3.2_c
 The images are also signed using my github address (`salrashid123@gmail`).  If you really want to, you can verify each signature usign `cosign`:
 
 ```bash
-export IMAGE="docker.io/salrashid123/grpc_health_proxy:server@sha256:d454b76c23edb9f9abf0541257dc0e92ee9c16df25d4676ec0946f6beae12ef5"
-export SIGNATURE="docker.io/salrashid123/grpc_health_proxy:sha256-adce22cdd04fa2b012209f2d048c883c66b7ab89eaadf4f596899fde52d3b0bd.sig"
+export IMAGE="docker.io/salrashid123/grpc_health_proxy:server@sha256:c200ef31c8dee07898abb4a020731742f7527aca3f9dfc8557372e01a3b4aa49"
+export SIGNATURE="docker.io/salrashid123/grpc_health_proxy:sha256-3cd7d5bfd4b8ac7399f7c16513d30d31ea0ce31fb309e2a7e95940626e9c5aa2.sig"
 ### view the image using crane
 crane  manifest $IMAGE
 crane  manifest $SIGNATURE

@@ -88,7 +88,7 @@ oci_load(
 oci_push(
     name = "push-image",
     image = ":index",
-    remote_tags = ["latest", "1.3.1"],
+    remote_tags = ["latest", "1.3.3"],
     repository = "index.docker.io/salrashid123/grpc_health_proxy",
 )
 
@@ -135,6 +135,6 @@ sign_all(
     ): image_spec.image for image_spec in IMAGES_TO_SIGN},
     tags = [
         "latest",
-        "1.3.2",
+        "1.3.3",
     ],
 )
