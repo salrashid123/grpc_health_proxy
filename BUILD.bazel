@@ -135,6 +135,6 @@ sign_all(
     ): image_spec.image for image_spec in IMAGES_TO_SIGN},
     tags = [
         "latest",
-        "1.3.1",
+        "1.3.2",
     ],
 )

@@ -477,10 +477,10 @@ If you download a binary from the "Releases" page, you can verify the signature 
 gpg --keyserver keyserver.ubuntu.com --recv-keys 5D8EA7261718FE5728BA937C97341836616BF511
 
 ## to verify the checksum file for a given release:
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.1/grpc_health_proxy_1.3.1_checksums.txt
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.1/grpc_health_proxy_1.3.1_checksums.txt.sig
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.2/grpc_health_proxy_1.3.2_checksums.txt
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.2/grpc_health_proxy_1.3.2_checksums.txt.sig
 
-gpg --verify grpc_health_proxy_1.3.1_checksums.txt.sig grpc_health_proxy_1.3.1_checksums.txt
+gpg --verify grpc_health_proxy_1.3.2_checksums.txt.sig grpc_health_proxy_1.3.2_checksums.txt
 ```
 
 #### Verify Container Image Signature

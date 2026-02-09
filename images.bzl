@@ -9,7 +9,7 @@ _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 COMMON_IMAGES = [
     struct(
         name = "default_server_image",
-        image = "//:main",
+        image = "//:server-image",
         repository = _PREFIX + "/grpc_health_proxy",
     ),
 ]
