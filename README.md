@@ -435,6 +435,40 @@ $ echo $?
 3
 ```
 
+### ListServices
+
+If you do not specify `--service-name=` in the command line or on startup, then the proxy will list out all the statuses:
+
+```golang
+func (s *Server) List(ctx context.Context, in *healthpb.HealthListRequest) (*healthpb.HealthListResponse, error)
+```
+
+for example, curl will enumerate all the services and their status
+
+```bash
+### start the proxy
+go run main.go     --http-listen-addr localhost:8080     --http-listen-path=/healthz     --grpcaddr localhost:50051
+
+
+### run the curl,
+$ curl -s     --resolve 'http.domain.com:8080:127.0.0.1'     http://http.domain.com:8080/healthz | jq '.'
+```
+
+will return a json list of status for each registered service
+
+```json
+{
+  "statuses": {
+    "echo.EchoServer": {
+      "status": 1
+    },
+    "echo.UnknownService": {
+      "status": 3
+    }
+  }
+}
+```
+
 #### Verify Release Binary
 
 If you download a binary from the "Releases" page, you can verify the signature with GPG:

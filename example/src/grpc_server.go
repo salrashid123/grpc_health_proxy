@@ -114,6 +114,19 @@ func (s *Server) Watch(in *healthpb.HealthCheckRequest, srv healthpb.Health_Watc
 	return status.Error(codes.Unimplemented, "Watch is not implemented")
 }
 
+func (s *Server) List(ctx context.Context, in *healthpb.HealthListRequest) (*healthpb.HealthListResponse, error) {
+	r := make(map[string]*healthpb.HealthCheckResponse)
+
+	r["echo.EchoServer"] = &healthpb.HealthCheckResponse{
+		Status: healthpb.HealthCheckResponse_SERVING,
+	}
+	r["echo.UnknownService"] = &healthpb.HealthCheckResponse{
+		Status: healthpb.HealthCheckResponse_SERVICE_UNKNOWN,
+	}
+	return &healthpb.HealthListResponse{Statuses: r}, nil
+
+}
+
 func main() {
 
 	flag.Set("logtostderr", "true")

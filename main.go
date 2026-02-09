@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"flag"
 	"fmt"
 
@@ -112,6 +113,8 @@ const (
 	StatusServiceNotFound   = 3
 	StatusUnimplemented     = 4
 	StatusUnhealthy         = 5
+
+	listServiceMetric = "listServiceRequest"
 )
 
 func prometheusMiddleware(next http.Handler) http.Handler {
@@ -282,9 +285,7 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 
 	logger.Info("establishing connection")
 	connStart := time.Now()
-	dialCtx, dialCancel := context.WithTimeout(ctx, cfg.flConnTimeout)
-	defer dialCancel()
-	conn, err := grpc.DialContext(dialCtx, cfg.flGrpcServerAddr, opts...)
+	conn, err := grpc.NewClient(cfg.flGrpcServerAddr, opts...)
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			logger.Warn("timeout: failed to connect service %s within %s", cfg.flGrpcServerAddr, cfg.flConnTimeout)
@@ -312,7 +313,7 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusUnimplemented, "StatusUnimplemented")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.DeadlineExceeded {
 			defer grpcReqs.WithLabelValues(codes.DeadlineExceeded.String(), serviceName).Inc()
-			logger.Warn("error timeout: health rpc did not complete within ", cfg.flRPCTimeout)
+			logger.Warn("error timeout: health rpc did not complete within ", slog.Duration("rpc_timeout", cfg.flRPCTimeout))
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusRPCFailure, "StatusRPCFailure")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
 			defer grpcReqs.WithLabelValues(codes.NotFound.String(), serviceName).Inc()
@@ -336,6 +337,64 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 	return resp.GetStatus(), nil
 }
 
+func listService(ctx context.Context) (healthpb.HealthListResponse, error) {
+
+	timer := prometheus.NewTimer(serviceDuration.WithLabelValues(listServiceMetric))
+	defer timer.ObserveDuration()
+
+	logger.Info("establishing connection")
+	connStart := time.Now()
+
+	conn, err := grpc.NewClient(cfg.flGrpcServerAddr, opts...)
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			logger.Warn("timeout: failed to connect service %s within %s", cfg.flGrpcServerAddr, cfg.flConnTimeout)
+		} else {
+			logger.Warn("error: failed to connect service at %s: %+v", cfg.flGrpcServerAddr, err)
+		}
+		return healthpb.HealthListResponse{}, NewGrpcProbeError(StatusConnectionFailure, "StatusConnectionFailure")
+	}
+	connDuration := time.Since(connStart)
+	defer conn.Close()
+	logger.Info("connection established", slog.Duration("duration", connDuration))
+
+	rpcStart := time.Now()
+	rpcCtx, rpcCancel := context.WithTimeout(ctx, cfg.flRPCTimeout)
+	defer rpcCancel()
+
+	logger.Info("Running ListServices")
+
+	resp, err := healthpb.NewHealthClient(conn).List(rpcCtx, &healthpb.HealthListRequest{})
+	if err != nil {
+		// first handle and return gRPC-level errors
+		if stat, ok := status.FromError(err); ok && stat.Code() == codes.Unimplemented {
+			defer grpcReqs.WithLabelValues(codes.Unimplemented.String(), listServiceMetric).Inc()
+			logger.Warn("error: this server does not implement the grpc health protocol list services (grpc.health.v1.Health)")
+			return healthpb.HealthListResponse{}, NewGrpcProbeError(StatusUnimplemented, "StatusUnimplemented")
+		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.DeadlineExceeded {
+			defer grpcReqs.WithLabelValues(codes.DeadlineExceeded.String(), listServiceMetric).Inc()
+			logger.Warn("error timeout: health rpc did not complete within ", slog.Duration("rpc_timeout", cfg.flRPCTimeout))
+			return healthpb.HealthListResponse{}, NewGrpcProbeError(StatusRPCFailure, "StatusRPCFailure")
+		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
+			defer grpcReqs.WithLabelValues(codes.NotFound.String(), listServiceMetric).Inc()
+			logger.Warn("error Service Not Found ", slog.String("", err.Error()))
+			return healthpb.HealthListResponse{}, NewGrpcProbeError(StatusServiceNotFound, "StatusServiceNotFound")
+		} else {
+			defer grpcReqs.WithLabelValues(codes.Unknown.String(), listServiceMetric).Inc()
+			logger.Warn("error: health rpc failed: ", slog.String("", err.Error()))
+		}
+	} else {
+		for s, r := range resp.Statuses {
+			defer grpcReqs.WithLabelValues(r.GetStatus().String(), s).Inc()
+		}
+	}
+	rpcDuration := time.Since(rpcStart)
+	// otherwise, retrurn gRPC-HC status
+	logger.Info("time elapsed", slog.Duration("connect", connDuration), slog.Duration("rpc", rpcDuration))
+
+	return *resp, nil
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	var serviceName string
@@ -347,38 +406,67 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		serviceName = keys[0]
 	}
 
-	resp, err := checkService(r.Context(), serviceName)
-	// first handle errors derived from gRPC-codes
-	if err != nil {
-		if pe, ok := err.(*GrpcProbeError); ok {
-			logger.Error("HealtCheck Probe Error:", slog.String("", pe.Error()))
-			switch pe.Code {
-			case StatusConnectionFailure:
-				http.Error(w, err.Error(), http.StatusBadGateway)
-			case StatusRPCFailure:
-				http.Error(w, err.Error(), http.StatusBadGateway)
-			case StatusUnimplemented:
-				http.Error(w, err.Error(), http.StatusNotImplemented)
-			case StatusServiceNotFound:
-				http.Error(w, fmt.Sprintf("%s ServiceNotFound", cfg.flServiceName), http.StatusNotFound)
-			default:
-				http.Error(w, err.Error(), http.StatusBadGateway)
-			}
-			return
-		}
-	}
+	if serviceName == "" {
 
-	// then grpc-hc codes
-	logger.Info("check ", slog.String("service_name", cfg.flServiceName), slog.String("response", resp.String()))
-	switch resp {
-	case healthpb.HealthCheckResponse_SERVING:
-		fmt.Fprintf(w, "%s %v", cfg.flServiceName, resp)
-	case healthpb.HealthCheckResponse_NOT_SERVING:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
-	case healthpb.HealthCheckResponse_UNKNOWN:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
-	case healthpb.HealthCheckResponse_SERVICE_UNKNOWN:
-		http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusNotFound)
+		resp, err := listService(r.Context())
+		// first handle errors derived from gRPC-codes
+		if err != nil {
+			if pe, ok := err.(*GrpcProbeError); ok {
+				logger.Error("HealtCheck Probe Error:", slog.String("", pe.Error()))
+				switch pe.Code {
+				case StatusConnectionFailure:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				case StatusRPCFailure:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				case StatusUnimplemented:
+					http.Error(w, err.Error(), http.StatusNotImplemented)
+				case StatusServiceNotFound:
+					http.Error(w, fmt.Sprintf("%s ServiceNotFound", cfg.flServiceName), http.StatusNotFound)
+				default:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				}
+				return
+			}
+		}
+		jsonData, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
+		fmt.Fprintf(w, "%s", string(jsonData))
+	} else {
+		resp, err := checkService(r.Context(), serviceName)
+		// first handle errors derived from gRPC-codes
+		if err != nil {
+			if pe, ok := err.(*GrpcProbeError); ok {
+				logger.Error("HealtCheck Probe Error:", slog.String("", pe.Error()))
+				switch pe.Code {
+				case StatusConnectionFailure:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				case StatusRPCFailure:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				case StatusUnimplemented:
+					http.Error(w, err.Error(), http.StatusNotImplemented)
+				case StatusServiceNotFound:
+					http.Error(w, fmt.Sprintf("%s ServiceNotFound", cfg.flServiceName), http.StatusNotFound)
+				default:
+					http.Error(w, err.Error(), http.StatusBadGateway)
+				}
+				return
+			}
+		}
+
+		// then grpc-hc codes
+		logger.Info("check ", slog.String("service_name", cfg.flServiceName), slog.String("response", resp.String()))
+		switch resp {
+		case healthpb.HealthCheckResponse_SERVING:
+			fmt.Fprintf(w, "%s %v", cfg.flServiceName, resp)
+		case healthpb.HealthCheckResponse_NOT_SERVING:
+			http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
+		case healthpb.HealthCheckResponse_UNKNOWN:
+			http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusBadGateway)
+		case healthpb.HealthCheckResponse_SERVICE_UNKNOWN:
+			http.Error(w, fmt.Sprintf("%s %v", cfg.flServiceName, resp.String()), http.StatusNotFound)
+		}
 	}
 }
 
@@ -397,30 +485,59 @@ func main() {
 	}
 
 	if cfg.flRunCli {
-		resp, err := checkService(context.Background(), cfg.flServiceName)
-		if err != nil {
-			if pe, ok := err.(*GrpcProbeError); ok {
-				logger.Error("HealtCheck Probe Error: ", slog.String("", pe.Error()))
-				switch pe.Code {
-				case StatusConnectionFailure:
-					os.Exit(StatusConnectionFailure)
-				case StatusRPCFailure:
-					os.Exit(StatusRPCFailure)
-				case StatusUnimplemented:
-					os.Exit(StatusUnimplemented)
-				case StatusServiceNotFound:
-					os.Exit(StatusServiceNotFound)
-				default:
-					os.Exit(StatusUnhealthy)
+		if cfg.flServiceName == "" {
+			resp, err := listService(context.Background())
+			if err != nil {
+				if pe, ok := err.(*GrpcProbeError); ok {
+					logger.Error("HealtCheck Probe Error: ", slog.String("", pe.Error()))
+					switch pe.Code {
+					case StatusConnectionFailure:
+						os.Exit(StatusConnectionFailure)
+					case StatusRPCFailure:
+						os.Exit(StatusRPCFailure)
+					case StatusUnimplemented:
+						os.Exit(StatusUnimplemented)
+					case StatusServiceNotFound:
+						os.Exit(StatusServiceNotFound)
+					default:
+						os.Exit(StatusUnhealthy)
+					}
 				}
 			}
-		}
-		if resp != healthpb.HealthCheckResponse_SERVING {
-			logger.Error("HealtCheck Probe Error: service %s failed with reason: %v", cfg.flServiceName, resp.String())
-			os.Exit(StatusUnhealthy)
+
+			jsonData, err := json.Marshal(resp)
+			if err != nil {
+				os.Exit(StatusRPCFailure)
+			}
+			logger.Info(string(jsonData))
+
 		} else {
-			logger.Info("%s %v", cfg.flServiceName, resp.String())
+			resp, err := checkService(context.Background(), cfg.flServiceName)
+			if err != nil {
+				if pe, ok := err.(*GrpcProbeError); ok {
+					logger.Error("HealtCheck Probe Error: ", slog.String("", pe.Error()))
+					switch pe.Code {
+					case StatusConnectionFailure:
+						os.Exit(StatusConnectionFailure)
+					case StatusRPCFailure:
+						os.Exit(StatusRPCFailure)
+					case StatusUnimplemented:
+						os.Exit(StatusUnimplemented)
+					case StatusServiceNotFound:
+						os.Exit(StatusServiceNotFound)
+					default:
+						os.Exit(StatusUnhealthy)
+					}
+				}
+			}
+			if resp != healthpb.HealthCheckResponse_SERVING {
+				logger.Error("HealtCheck Probe Error: service %s failed with reason: %v", cfg.flServiceName, resp.String())
+				os.Exit(StatusUnhealthy)
+			} else {
+				logger.Info("%s %s", cfg.flServiceName, resp.String())
+			}
 		}
+
 	} else {
 
 		tlsConfig := &tls.Config{}
