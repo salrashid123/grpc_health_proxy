@@ -69,3 +69,21 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         with:
           subject-checksums: "dist/grpc_health_proxy_${{steps.set_version.outputs.no-dash}}_checksums.txt"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Get Bazel
+        uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Bazel Push
+        run: bazelisk run :push-image
+
+      - name: Cosign Sign
+        run: bazelisk run :sign_all_images --define container_registry=docker.io --define image_repo_prefix=salrashid123  -- -y

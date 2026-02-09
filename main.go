@@ -24,7 +24,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang/glog"
+	"log/slog"
+
 	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc"
@@ -60,6 +61,9 @@ type ProbeConfig struct {
 	flHTTPSTLSServerKey     string
 	flHTTPSTLSVerifyCA      string
 	flHTTPSTLSVerifyClient  bool
+	flLogTarget             string
+	flJSONLog               bool
+	flDebug                 bool
 }
 
 var (
@@ -83,6 +87,8 @@ var (
 		},
 		[]string{"code", "service_name"},
 	)
+
+	logger *slog.Logger
 )
 
 type GrpcProbeError struct {
@@ -143,11 +149,39 @@ func init() {
 	flag.StringVar(&cfg.flGrpcTLSClientKey, "grpc-client-key", "", "(with -grpctls) client private key for authenticating to the server (requires -tls-client-cert)")
 	flag.StringVar(&cfg.flGrpcSNIServerName, "grpc-sni-server-name", "", "(with -grpctls) override the hostname used to verify the gRPC server certificate")
 
+	flag.StringVar(&cfg.flLogTarget, "logTarget", "", "log to file target (default stdout)")
+	flag.BoolVar(&cfg.flJSONLog, "jsonLog", false, "enable json logging")
+	flag.BoolVar(&cfg.flDebug, "debug", false, "enable debug logging")
+
 	flag.Parse()
+
+	mlogTarget := os.Stdout // default
+	if cfg.flLogTarget != "" {
+		var err error
+		mlogTarget, err = os.OpenFile(cfg.flLogTarget, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			slog.Error("Failed to open log file", "err", err)
+			os.Exit(-1)
+		}
+	}
+
+	logLevel := slog.LevelInfo
+	if cfg.flDebug {
+		logLevel = slog.LevelDebug
+	}
+	if cfg.flJSONLog {
+		logger = slog.New(slog.NewJSONHandler(mlogTarget, &slog.HandlerOptions{
+			Level: logLevel,
+		}))
+	} else {
+		logger = slog.New(slog.NewTextHandler(mlogTarget, &slog.HandlerOptions{
+			Level: logLevel,
+		}))
+	}
 
 	argError := func(s string, v ...interface{}) {
 		//flag.PrintDefaults()
-		glog.Errorf("Invalid Argument error: "+s, v...)
+		logger.Error("Invalid Argument error: "+s, v...)
 		os.Exit(-1)
 	}
 
@@ -194,21 +228,21 @@ func init() {
 		argError("cannot specify -https-listen-ca if https-listen-verify is set (you need a trust CA for client certificate https auth)")
 	}
 
-	glog.V(10).Infof("parsed options:")
-	glog.V(10).Infof("> addr=%s conn_timeout=%s rpc_timeout=%s", cfg.flGrpcServerAddr, cfg.flConnTimeout, cfg.flRPCTimeout)
-	glog.V(10).Infof("> grpctls=%v", cfg.flGrpcTLS)
-	glog.V(10).Infof(" http-listen-addr=%s ", cfg.flHTTPListenAddr)
-	glog.V(10).Infof(" http-listen-path=%s ", cfg.flHTTPListenPath)
+	logger.Info("parsed options:")
+	logger.Info(">", slog.String("addr", cfg.flGrpcServerAddr), slog.Duration("conn_timeout", cfg.flConnTimeout), slog.Duration("rpc_timeout", cfg.flRPCTimeout))
+	logger.Info(">", slog.Bool("grpctls", cfg.flGrpcTLS))
+	logger.Info(">", slog.String("http-listen-addr", cfg.flHTTPListenAddr))
+	logger.Info(">", slog.String("http-listen-path", cfg.flHTTPListenPath))
 
-	glog.V(10).Infof(" https-listen-cert=%s ", cfg.flHTTPSTLSServerCert)
-	glog.V(10).Infof(" https-listen-key=%s ", cfg.flHTTPSTLSServerKey)
-	glog.V(10).Infof(" https-listen-verify=%v ", cfg.flHTTPSTLSVerifyClient)
-	glog.V(10).Infof(" https-listen-ca=%s ", cfg.flHTTPSTLSVerifyCA)
-	glog.V(10).Infof("  > grpc-tls-no-verify=%v ", cfg.flGrpcTLSNoVerify)
-	glog.V(10).Infof("  > grpc-ca-cert=%s", cfg.flGrpcTLSCACert)
-	glog.V(10).Infof("  > grpc-client-cert=%s", cfg.flGrpcTLSClientCert)
-	glog.V(10).Infof("  > grpc-client-key=%s", cfg.flGrpcTLSClientKey)
-	glog.V(10).Infof("  > grpc-sni-server-name=%s", cfg.flGrpcSNIServerName)
+	logger.Info(">", slog.String("https-listen-cert", cfg.flHTTPSTLSServerCert))
+	logger.Info(">", slog.String("https-listen-key", cfg.flHTTPSTLSServerKey))
+	logger.Info(">", slog.Bool("https-listen-verify", cfg.flHTTPSTLSVerifyClient))
+	logger.Info(">", slog.String("https-listen-ca", cfg.flHTTPSTLSVerifyCA))
+	logger.Info(">", slog.Bool("grpc-tls-no-verify", cfg.flGrpcTLSNoVerify))
+	logger.Info(">", slog.String("grpc-ca-cert", cfg.flGrpcTLSCACert))
+	logger.Info(">", slog.String("grpc-client-cert", cfg.flGrpcTLSClientCert))
+	logger.Info(">", slog.String("grpc-client-key", cfg.flGrpcTLSClientKey))
+	logger.Info(">", slog.String("grpc-sni-server-name", cfg.flGrpcSNIServerName))
 }
 
 func buildGrpcCredentials() (credentials.TransportCredentials, error) {
@@ -246,39 +280,39 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 	timer := prometheus.NewTimer(serviceDuration.WithLabelValues(serviceName))
 	defer timer.ObserveDuration()
 
-	glog.V(10).Infof("establishing connection")
+	logger.Info("establishing connection")
 	connStart := time.Now()
 	dialCtx, dialCancel := context.WithTimeout(ctx, cfg.flConnTimeout)
 	defer dialCancel()
 	conn, err := grpc.DialContext(dialCtx, cfg.flGrpcServerAddr, opts...)
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			glog.Warningf("timeout: failed to connect service %s within %s", cfg.flGrpcServerAddr, cfg.flConnTimeout)
+			logger.Warn("timeout: failed to connect service %s within %s", cfg.flGrpcServerAddr, cfg.flConnTimeout)
 		} else {
-			glog.Warningf("error: failed to connect service at %s: %+v", cfg.flGrpcServerAddr, err)
+			logger.Warn("error: failed to connect service at %s: %+v", cfg.flGrpcServerAddr, err)
 		}
 		return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusConnectionFailure, "StatusConnectionFailure")
 	}
 	connDuration := time.Since(connStart)
 	defer conn.Close()
-	glog.V(10).Infof("connection established %v", connDuration)
+	logger.Info("connection established", slog.Duration("duration", connDuration))
 
 	rpcStart := time.Now()
 	rpcCtx, rpcCancel := context.WithTimeout(ctx, cfg.flRPCTimeout)
 	defer rpcCancel()
 
-	glog.V(10).Infoln("Running HealthCheck for service: ", serviceName)
+	logger.Info("Running HealthCheck for service:", slog.String("service_name", serviceName))
 
 	resp, err := healthpb.NewHealthClient(conn).Check(rpcCtx, &healthpb.HealthCheckRequest{Service: serviceName})
 	if err != nil {
 		// first handle and return gRPC-level errors
 		if stat, ok := status.FromError(err); ok && stat.Code() == codes.Unimplemented {
 			defer grpcReqs.WithLabelValues(codes.Unimplemented.String(), serviceName).Inc()
-			glog.Warningf("error: this server does not implement the grpc health protocol (grpc.health.v1.Health)")
+			logger.Warn("error: this server does not implement the grpc health protocol (grpc.health.v1.Health)")
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusUnimplemented, "StatusUnimplemented")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.DeadlineExceeded {
 			defer grpcReqs.WithLabelValues(codes.DeadlineExceeded.String(), serviceName).Inc()
-			glog.Warningf("error timeout: health rpc did not complete within ", cfg.flRPCTimeout)
+			logger.Warn("error timeout: health rpc did not complete within ", cfg.flRPCTimeout)
 			return healthpb.HealthCheckResponse_UNKNOWN, NewGrpcProbeError(StatusRPCFailure, "StatusRPCFailure")
 		} else if stat, ok := status.FromError(err); ok && stat.Code() == codes.NotFound {
 			defer grpcReqs.WithLabelValues(codes.NotFound.String(), serviceName).Inc()
@@ -286,18 +320,18 @@ func checkService(ctx context.Context, serviceName string) (healthpb.HealthCheck
 			// https://github.com/grpc/grpc/blob/master/doc/health-checking.md
 			// if the service name is not registerered, the server returns a NOT_FOUND GPRPC status.
 			// the Check for a not found should "return nil, status.Error(codes.NotFound, "unknown service")"
-			glog.Warningf("error Service Not Found %v", err)
+			logger.Warn("error Service Not Found ", slog.String("", err.Error()))
 			return healthpb.HealthCheckResponse_SERVICE_UNKNOWN, NewGrpcProbeError(StatusServiceNotFound, "StatusServiceNotFound")
 		} else {
 			defer grpcReqs.WithLabelValues(codes.Unknown.String(), serviceName).Inc()
-			glog.Warningf("error: health rpc failed: ", err)
+			logger.Warn("error: health rpc failed: ", slog.String("", err.Error()))
 		}
 	} else {
 		defer grpcReqs.WithLabelValues(resp.GetStatus().String(), serviceName).Inc()
 	}
 	rpcDuration := time.Since(rpcStart)
 	// otherwise, retrurn gRPC-HC status
-	glog.V(10).Infof("time elapsed: connect=%s rpc=%s", connDuration, rpcDuration)
+	logger.Info("time elapsed", slog.Duration("connect", connDuration), slog.Duration("rpc", rpcDuration))
 
 	return resp.GetStatus(), nil
 }
@@ -317,7 +351,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	// first handle errors derived from gRPC-codes
 	if err != nil {
 		if pe, ok := err.(*GrpcProbeError); ok {
-			glog.Errorf("HealtCheck Probe Error: %v", pe.Error())
+			logger.Error("HealtCheck Probe Error:", slog.String("", pe.Error()))
 			switch pe.Code {
 			case StatusConnectionFailure:
 				http.Error(w, err.Error(), http.StatusBadGateway)
@@ -335,7 +369,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// then grpc-hc codes
-	glog.Infof("%s %v", cfg.flServiceName, resp.String())
+	logger.Info("check ", slog.String("service_name", cfg.flServiceName), slog.String("response", resp.String()))
 	switch resp {
 	case healthpb.HealthCheckResponse_SERVING:
 		fmt.Fprintf(w, "%s %v", cfg.flServiceName, resp)
@@ -351,11 +385,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	opts = append(opts, grpc.WithUserAgent(cfg.flUserAgent))
-	opts = append(opts, grpc.WithBlock())
 	if cfg.flGrpcTLS {
 		creds, err := buildGrpcCredentials()
 		if err != nil {
-			glog.Fatalf("failed to initialize tls credentials. error=%v", err)
+			logger.Error("failed to initialize tls credentials", slog.String("", err.Error()))
+			os.Exit(-1)
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
@@ -366,7 +400,7 @@ func main() {
 		resp, err := checkService(context.Background(), cfg.flServiceName)
 		if err != nil {
 			if pe, ok := err.(*GrpcProbeError); ok {
-				glog.Errorf("HealtCheck Probe Error: %v", pe.Error())
+				logger.Error("HealtCheck Probe Error: ", slog.String("", pe.Error()))
 				switch pe.Code {
 				case StatusConnectionFailure:
 					os.Exit(StatusConnectionFailure)
@@ -382,10 +416,10 @@ func main() {
 			}
 		}
 		if resp != healthpb.HealthCheckResponse_SERVING {
-			glog.Errorf("HealtCheck Probe Error: service %s failed with reason: %v", cfg.flServiceName, resp.String())
+			logger.Error("HealtCheck Probe Error: service %s failed with reason: %v", cfg.flServiceName, resp.String())
 			os.Exit(StatusUnhealthy)
 		} else {
-			glog.Infof("%s %v", cfg.flServiceName, resp.String())
+			logger.Info("%s %v", cfg.flServiceName, resp.String())
 		}
 	} else {
 
@@ -393,11 +427,13 @@ func main() {
 		if cfg.flHTTPSTLSVerifyClient {
 			caCert, err := os.ReadFile(cfg.flHTTPSTLSVerifyCA)
 			if err != nil {
-				glog.Fatal(err)
+				logger.Error("Error reading ca", slog.String("", err.Error()))
+				os.Exit(-1)
 			}
 			caCertPool := x509.NewCertPool()
 			if !caCertPool.AppendCertsFromPEM(caCert) {
-				glog.Fatal("Unable to add https server root CA certs")
+				logger.Error("Unable to add https server root CA certs")
+				os.Exit(-1)
 			}
 
 			tlsConfig = &tls.Config{
@@ -412,7 +448,11 @@ func main() {
 
 		go func() {
 			http.Handle(cfg.flMetricsHTTPPath, promhttp.Handler())
-			glog.Error(http.ListenAndServe(cfg.flMetricsHTTPListenAddr, nil))
+			err := http.ListenAndServe(cfg.flMetricsHTTPListenAddr, nil)
+			if err != nil {
+				logger.Error("Error starting server ", slog.String("", err.Error()))
+				os.Exit(-1)
+			}
 		}()
 
 		srv := &http.Server{
@@ -428,7 +468,8 @@ func main() {
 			err = srv.ListenAndServe()
 		}
 		if err != nil {
-			glog.Fatalf("ListenAndServe Error: ", err)
+			logger.Error("ListenAndServe Error:", slog.String("", err.Error()))
+			os.Exit(-1)
 		}
 	}
 }

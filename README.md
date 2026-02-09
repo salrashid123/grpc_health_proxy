@@ -48,13 +48,7 @@ grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
-    --service-name echo.EchoServer \
-    --logtostderr=1 -v 10
-
-
-I0329 21:05:37.969302 1128850 main.go:229] Running HealthCheck for service:  echo.EchoServer
-I0329 21:05:37.970145 1128850 main.go:253] time elapsed: connect=763.1µs rpc=848.974µs
-I0329 21:05:37.970289 1128850 main.go:291] echo.EchoServer SERVING
+    --service-name echo.EchoServer
 ```
 
   - Invoke http proxy
@@ -191,9 +185,7 @@ grpc_health_proxy \
     --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
-    --service-name echo.EchoServer \
-    --logtostderr=1 -v 10
-
+    --service-name echo.EchoServer 
 ```
 
   - Run gRPC Server
@@ -223,8 +215,7 @@ grpc_health_proxy \
     --grpcaddr localhost:50051 \
     --https-listen-cert=certs/http_server_crt.pem \
     --https-listen-key=certs/http_server_key.pem \
-    --service-name echo.EchoServer \
-    --logtostderr=1 -v 10
+    --service-name echo.EchoServer
 ```
 
   - Run gRPC Server
@@ -261,8 +252,7 @@ grpc_health_proxy \
     --https-listen-ca=certs/CA_crt.pem \
     --grpctls \
     --grpc-ca-cert=certs/CA_crt.pem \
-    --grpc-sni-server-name=grpc.domain.com \
-    --logtostderr=1 -v 10
+    --grpc-sni-server-name=grpc.domain.com
 ```
 
   - Run gRPC Server
@@ -305,8 +295,7 @@ grpc_health_proxy \
     --grpc-client-cert=certs/proxy_client_crt.pem \
     --grpc-client-key=certs/proxy_client_key.pem \
     --grpc-ca-cert=certs/CA_crt.pem \
-    --grpc-sni-server-name=grpc.domain.com \
-    --logtostderr=1 -v 10
+    --grpc-sni-server-name=grpc.domain.com 
 ```
 
   - Run gRPC Server
@@ -363,9 +352,7 @@ spec:
         args: [
           "--http-listen-addr=0.0.0.0:8080",
           "--grpcaddr=localhost:50051",
-          "--service-name=echo.EchoServer",
-          "--logtostderr=1",
-          "-v=1"
+          "--service-name=echo.EchoServer"
         ]
         ports:
         - containerPort: 8080
@@ -396,8 +383,7 @@ There are several exit codes this utility returns
 $ ./grpc_health_proxy \
    --runcli \
    --grpcaddr localhost:50051 \
-   --service-name echo.EchoServer  \
-   --logtostderr=1
+   --service-name echo.EchoServer 
 
 echo.EchoServer SERVING
 
@@ -411,8 +397,7 @@ $ echo $?
 $ ./grpc_health_proxy \
    --runcli \
    --grpcaddr localhost:50051 \
-   --service-name echo.EchoServer  \
-   --logtostderr=1
+   --service-name echo.EchoServer 
 
 echo.EchoServer UNHEALTHY
 
@@ -426,8 +411,7 @@ $ echo $?
 $ ./grpc_health_proxy \
    --runcli \
    --grpcaddr localhost:50051 \
-   --service-name echo.EchoServer \
-   --logtostderr=1 
+   --service-name echo.EchoServer
 
 timeout: failed to connect service localhost:50051 within 1s
 HealtCheck Probe Error: StatusConnectionFailure
@@ -442,8 +426,7 @@ $ echo $?
 $ ./grpc_health_proxy \
    --runcli \
    --grpcaddr localhost:50051 \
-   --service-name foo  \
-   --logtostderr=1
+   --service-name foo 
 
 error Service Not Found rpc error: code = NotFound desc = unknown service
 HealtCheck Probe Error: StatusServiceNotFound
@@ -460,10 +443,10 @@ If you download a binary from the "Releases" page, you can verify the signature 
 gpg --keyserver keyserver.ubuntu.com --recv-keys 5D8EA7261718FE5728BA937C97341836616BF511
 
 ## to verify the checksum file for a given release:
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.2.1/grpc_health_proxy_1.2.1_checksums.txt
-wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.2.1/grpc_health_proxy_1.2.1_checksums.txt.sig
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.1/grpc_health_proxy_1.3.1_checksums.txt
+wget https://github.com/salrashid123/grpc_health_proxy/releases/download/v1.3.1/grpc_health_proxy_1.3.1_checksums.txt.sig
 
-gpg --verify grpc_health_proxy_1.2.1_checksums.txt.sig grpc_health_proxy_1.2.1_checksums.txt
+gpg --verify grpc_health_proxy_1.3.1_checksums.txt.sig grpc_health_proxy_1.3.1_checksums.txt
 ```
 
 #### Verify Container Image Signature
@@ -471,19 +454,20 @@ gpg --verify grpc_health_proxy_1.2.1_checksums.txt.sig grpc_health_proxy_1.2.1_c
 The images are also signed using my github address (`salrashid123@gmail`).  If you really want to, you can verify each signature usign `cosign`:
 
 ```bash
-## for tag/version  index.docker.io/salrashid123/grpc_health_proxy:1.1.0:
-IMAGE="index.docker.io/salrashid123/grpc_health_proxy@sha256:fea07c09281fbac273a0e02c948e3bfd4d1f6d23c76e6e7157aa8d8d9bbaad52"
+export IMAGE="docker.io/salrashid123/grpc_health_proxy:server@sha256:d454b76c23edb9f9abf0541257dc0e92ee9c16df25d4676ec0946f6beae12ef5"
+export SIGNATURE="docker.io/salrashid123/grpc_health_proxy:sha256-adce22cdd04fa2b012209f2d048c883c66b7ab89eaadf4f596899fde52d3b0bd.sig"
+### view the image using crane
+crane  manifest $IMAGE
+crane  manifest $SIGNATURE
 
-## i signed it directly, keyless:
-export COSIGN_EXPERIMENTAL=1
-# cosign sign $IMAGE
+export COSIGN_EXPERIMENTAL=1  
+cosign verify $IMAGE     --certificate-oidc-issuer https://token.actions.githubusercontent.com       --certificate-identity-regexp="https://github.com.*"
 
-## which you can verify:
-$ cosign verify --certificate-identity=salrashid123@gmail.com  --certificate-oidc-issuer=https://github.com/login/oauth $IMAGE | jq '.'
-
-## search and get 
+openssl x509 -in hashedrekord_public.crt -noout -text
+rekor-cli search --rekor_server https://rekor.sigstore.dev    --sha  af9b2992adfd134df1467f1f9ab4ab516798fa9cecf2e857ca06c139fb98b34f
 # rekor-cli search --rekor_server https://rekor.sigstore.dev  --email salrashid123@gmail.com
 # rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
+rekor-cli get --rekor_server https://rekor.sigstore.dev    --uuid 108e9186e8c5677a968492cdcb7a6ecff4a5e0c945b994c4c27c2973693c8f48cf81a635e70780c2 
 ```
 
 #### Bazel
@@ -491,21 +475,20 @@ $ cosign verify --certificate-identity=salrashid123@gmail.com  --certificate-oid
 These images were built using bazel so you should get the same container hash (i.e., deterministic builds)
 
 ```bash
-bazel run :gazelle -- update-repos -from_file=go.mod -prune=true -to_macro=repositories.bzl%go_repositories
+bazelisk run :gazelle -- update-repos -from_file=go.mod -prune=true -to_macro=repositories.bzl%go_repositories
 
-bazel run :server-image
+bazelisk run :server-image
 
-bazel run :main -- --http-listen-addr localhost:8080 \
+bazelisk run :main -- --http-listen-addr localhost:8080 \
     --http-listen-path=/healthz \
     --grpcaddr localhost:50051 \
-    --service-name echo.EchoServer \
-    --logtostderr=1 -v 10
+    --service-name echo.EchoServer 
 
 ## to build the oci image tar
-# bazel build cmd:tar-oci-index
+# bazelisk build cmd:tar-oci-index
 
 ## to push the image a repo
-# bazel run cmd:push-image     
+# bazelisk run cmd:push-image     
 ```
 
 ### Metrics
