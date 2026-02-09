@@ -488,7 +488,7 @@ gpg --verify grpc_health_proxy_1.3.3_checksums.txt.sig grpc_health_proxy_1.3.3_c
 The images are also signed using my github address (`salrashid123@gmail`).  If you really want to, you can verify each signature usign `cosign`:
 
 ```bash
-export IMAGE="docker.io/salrashid123/grpc_health_proxy:server@sha256:c200ef31c8dee07898abb4a020731742f7527aca3f9dfc8557372e01a3b4aa49"
+export IMAGE="docker.io/salrashid123/grpc_health_proxy:server@sha256:3cd7d5bfd4b8ac7399f7c16513d30d31ea0ce31fb309e2a7e95940626e9c5aa2"
 export SIGNATURE="docker.io/salrashid123/grpc_health_proxy:sha256-3cd7d5bfd4b8ac7399f7c16513d30d31ea0ce31fb309e2a7e95940626e9c5aa2.sig"
 ### view the image using crane
 crane  manifest $IMAGE
@@ -496,12 +496,6 @@ crane  manifest $SIGNATURE
 
 export COSIGN_EXPERIMENTAL=1  
 cosign verify $IMAGE     --certificate-oidc-issuer https://token.actions.githubusercontent.com       --certificate-identity-regexp="https://github.com.*"
-
-openssl x509 -in hashedrekord_public.crt -noout -text
-rekor-cli search --rekor_server https://rekor.sigstore.dev    --sha  af9b2992adfd134df1467f1f9ab4ab516798fa9cecf2e857ca06c139fb98b34f
-# rekor-cli search --rekor_server https://rekor.sigstore.dev  --email salrashid123@gmail.com
-# rekor-cli get --rekor_server https://rekor.sigstore.dev  --log-index $LogIndex  --format=json | jq '.'
-rekor-cli get --rekor_server https://rekor.sigstore.dev    --uuid 108e9186e8c5677a968492cdcb7a6ecff4a5e0c945b994c4c27c2973693c8f48cf81a635e70780c2 
 ```
 
 #### Bazel
